@@ -238,7 +238,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if farewellDone || window == nil || !(window?.isVisible ?? false) { return .terminateNow }
         farewellDone = true
         brain.start(.farewell)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 6.3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
@@ -253,8 +253,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "happy": pose.eyes = .happy
         case "wide": pose.eyes = .wide; pose.bodyDY = -4
         case "wave": pose.eyes = .happy; pose.nearHand = CGPoint(x: 60, y: 17)
-        case "up": pose.nearHand = nil; pose.grip = CGPoint(x: 4, y: -13); pose.swordRot = 1.4; pose.eyes = .angry; pose.torsoRot = 0.16; pose.shoulderLift = 2.4
-        case "chop": pose.nearHand = nil; pose.grip = CGPoint(x: -1, y: 1); pose.swordRot = -1.0; pose.eyes = .angry; pose.bodyDX = -1.2; pose.torsoRot = -0.22; pose.shoulderLift = -1.2
+        case "up": pose.nearHand = nil; pose.grip = CGPoint(x: -1, y: -22); pose.swordRot = 2.0; pose.torsoRot = 0.12; pose.shoulderLift = 2
+        case "chop": pose.nearHand = nil; pose.grip = CGPoint(x: 7, y: -10); pose.swordRot = -1.5; pose.torsoRot = -0.2; pose.shoulderLift = -1.2; pose.bodyDX = 2.2; pose.crouch = 0.3; pose.bodyDY = 1
         case "sad": pose.eyes = .half; pose.headDY = 2.5; pose.headRot = 0.07
         case "glitch": pose.glitch = 1
         case "quit": pose.showQuit = true

@@ -163,12 +163,12 @@ final class Brain {
     private func duration(_ kind: Action) -> Double {
         switch kind {
         case .wake: 7.0
-        case .farewell: 6.3
+        case .farewell: 3.0
         case .sad: 2.8
         case .surprised: 0.9
         case .angry: 1.2
         case .happy: 1.2
-        case .swing: 1.6
+        case .swing: 1.9
         case .look: 2.2
         case .glitch: 0.4
         case .guard_: 6.6
@@ -310,7 +310,7 @@ final class Brain {
                 apply(current.kind, elapsed: elapsed, to: &pose)
             }
         }
-        if let a = action, a.kind == .swing, bloodStart < a.start { bloodStart = a.start }
+        if let a = action, a.kind == .swing, now - a.start >= 0.6, bloodStart < a.start { bloodStart = a.start + 0.6 }
         let age = now - bloodStart
         pose.bloodAge = (age >= 0 && age < 1.2) ? age : -1
         pose.view = .threeQuarter
@@ -611,7 +611,7 @@ final class Brain {
             if bow > 0.01 { Self.applySalute(k: bow, to: &pose) }
         case .farewell:
             // bow to say goodbye
-            Self.applySalute(k: ease(e / 0.5) * (1 - ease((e - 5.7) / 0.6)), to: &pose)
+            Self.applySalute(k: ease(e / 0.4) * (1 - ease((e - 2.4) / 0.6)), to: &pose)
         case .sad:
             pose.eyes = e < 1.4 ? .half : .closed
             pose.headDY = 2.5 * ease(e / 0.8)
@@ -650,40 +650,41 @@ final class Brain {
             pose.nearHand = lerp(Skeleton.relaxedNear, CGPoint(x: near.x + 8, y: near.y - 12 - 3 * hop), 0.7 * ease(e / 0.2))
             pose.shoulderLift = 1.2 * hop
         case .swing:
-            // wind up overhead (shoulders rise, torso leans back), chop down (torso drives forward), recover
-            let g0 = CGPoint(x: 0, y: 0), g1 = CGPoint(x: 4, y: -13), g2 = CGPoint(x: -1, y: 1)
-            let up = ease(e / 0.45)
-            let chop = ease((e - 0.55) / 0.13)
-            let recover = ease((e - 0.75) / 0.75)
-            let theta: Double
-            let grip: CGPoint
-            let torso: Double
-            let lift: Double
-            pose.nearHand = nil          // two hands on the hilt for the big swing
-            if e < 0.55 {
-                theta = 1.4 * up
-                grip = lerp(g0, g1, up)
-                torso = 0.16 * up
-                lift = 2.4 * up
-            } else if e < 0.75 {
-                theta = 1.4 - 1.9 * chop
-                grip = lerp(g1, g2, chop)
-                torso = 0.16 - 0.38 * chop
-                lift = 2.4 - 3.6 * chop
+            // wind up above the head, cut down from head height, hold the hit, recover
+            let base = pose.grip, baseRot = pose.swordRot, baseTorso = pose.torsoRot
+            let wind = (grip: CGPoint(x: -1, y: -22), rot: 2.0, torso: 0.12, lift: 2.0)
+            let hit = (grip: CGPoint(x: 7, y: -10), rot: -1.5, torso: -0.2, lift: -1.2)
+            func blend(_ a: Double, _ b: Double, _ t: Double) -> Double { a + (b - a) * t }
+            pose.nearHand = nil          // two hands on the hilt
+            if e < 0.7 {
+                let k = ease(e / 0.55)
+                pose.grip = lerp(base, wind.grip, k)
+                pose.swordRot = blend(baseRot, wind.rot, k)
+                pose.torsoRot = blend(baseTorso, wind.torso, k)
+                pose.shoulderLift = wind.lift * k
+                pose.bodyDX = -0.8 * k
+            } else if e < 1.15 {
+                let k = ease((e - 0.7) / 0.14)
+                let since = max(0, e - 0.84)
+                pose.grip = lerp(wind.grip, hit.grip, k)
+                pose.swordRot = blend(wind.rot, hit.rot, k)
+                pose.torsoRot = blend(wind.torso, hit.torso, k)
+                pose.shoulderLift = blend(wind.lift, hit.lift, k)
+                pose.bodyDX = blend(-0.8, 2.2, k)
+                pose.crouch = 0.3 * k
+                pose.bodyDY = 1.0 * k
+                pose.shakeX = sin(e * 80) * 0.9 * exp(-since * 14)     // the blow lands
+                if since > 0, since < 0.1 { pose.glitch = 0.3 * (1 - since / 0.1) }
             } else {
-                theta = -0.5 * (1 - recover)
-                grip = lerp(g2, g0, recover)
-                torso = -0.22 * (1 - recover)
-                lift = -1.2 * (1 - recover)
+                let k = ease((e - 1.15) / 0.7)
+                pose.grip = lerp(hit.grip, base, k)
+                pose.swordRot = blend(hit.rot, baseRot, k)
+                pose.torsoRot = blend(hit.torso, baseTorso, k)
+                pose.shoulderLift = hit.lift * (1 - k)
+                pose.bodyDX = 2.2 * (1 - k)
+                pose.crouch = 0.3 * (1 - k)
+                pose.bodyDY = 1.0 * (1 - k)
             }
-            pose.swordRot = theta
-            pose.grip = grip
-            pose.torsoRot = torso
-            pose.shoulderLift = lift
-            pose.eyes = (e > 0.4 && e < 0.8) ? .angry : .open
-            pose.bodyDX = (e > 0.55 && e < 0.85) ? -1.2 : 0
-            pose.crouch = 0.22 * ease((e - 0.4) / 0.2) * (1 - ease((e - 0.8) / 0.4))   // sink into the cut
-            pose.headDY = e < 0.55 ? 0 : 0.8 * (1 - recover)
         case .look:
             let steps = [-2, 2, -1, 0]
             pose.eyeDX = steps[min(steps.count - 1, Int(e / 0.55))]
