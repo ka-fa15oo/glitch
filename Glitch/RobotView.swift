@@ -10,7 +10,7 @@ struct RobotView: View {
     )
 
     /// The close button revealed by a double-click, in view coordinates (origin top-left).
-    static let quitRect = CGRect(x: canvasSize.width - 84, y: 4, width: 80, height: 26)
+    static let quitRect = CGRect(x: canvasSize.width - 34, y: 4, width: 28, height: 28)
 
     var brain: Brain?
     var fixedTime: Double?
@@ -63,8 +63,8 @@ struct RobotView: View {
         .frame(width: Self.canvasSize.width, height: Self.canvasSize.height)
         .overlay(alignment: .topLeading) {
             if pose.showQuit {
-                Text("✕ Kapat")
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                Text("✕")
+                    .font(.system(size: 15, weight: .heavy))
                     .foregroundStyle(Color(red: 0.96, green: 0.82, blue: 0.82))
                     .frame(width: Self.quitRect.width, height: Self.quitRect.height)
                     .background(Color(red: 0.16, green: 0.03, blue: 0.06))
@@ -200,7 +200,73 @@ struct RobotView: View {
     private static func drawCharacter(
         _ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose
     ) {
-        drawSide(&outer, unit: unit, size: size, t: t, pose: pose, shadow: true)
+        if pose.reveal < 0.999 || pose.cocoonAge >= 0 {
+            // appearing / disappearing inside the blood: the character fades under swirling ribbons
+            var layer = outer
+            layer.opacity = max(0, min(1, pose.reveal))
+            layer.drawLayer { inner in
+                var c = inner
+                drawSide(&c, unit: unit, size: size, t: t, pose: pose, shadow: true)
+            }
+            if pose.cocoonAge >= 0 {
+                BloodFX.draw(&outer, unit: unit, age: pose.cocoonAge, hold: pose.cocoonHold, t: t)
+            }
+        } else {
+            drawSide(&outer, unit: unit, size: size, t: t, pose: pose, shadow: true)
+        }
+    }
+
+    // MARK: - blood cocoon: ribbons spiral in around the whole body (arrival and goodbye)
+
+    private struct Spiral {
+        let phase, turns, r0, r1, width, delay: Double
+    }
+
+    private static let spirals: [Spiral] = [
+        Spiral(phase: 0.0, turns: 1.6, r0: 34, r1: 13, width: 9.0, delay: 0.0),
+        Spiral(phase: 2.1, turns: 1.4, r0: 30, r1: 11, width: 7.0, delay: 0.1),
+        Spiral(phase: 4.2, turns: 1.8, r0: 36, r1: 15, width: 5.5, delay: 0.2),
+    ]
+
+    private static func drawCocoon(_ ctx: inout GraphicsContext, unit: CGFloat, age: Double, hold: Bool, t: Double) {
+        func ease(_ x: Double) -> Double { let c = max(0, min(1, x)); return c * c * (3 - 2 * c) }
+        var body = Path(), mid = Path(), core = Path()
+        func pixel(_ path: inout Path, _ x: Double, _ y: Double) {
+            path.addRect(CGRect(x: floor(x) * unit, y: floor(y) * unit, width: unit, height: unit))
+        }
+        for (index, sp) in spirals.enumerated() {
+            let grow = ease((age - sp.delay) / 0.7)
+            let wither = hold ? 0 : ease((age - 1.6 - sp.delay * 0.3) / 0.7)
+            if grow <= 0 || wither >= 1 { continue }
+            let samples = 220
+            for i in 0 ... samples {
+                let u = Double(i) / Double(samples)
+                if u > grow || u < wither * grow { continue }
+                let theta = sp.phase + t * 1.5 + u * sp.turns * 2 * .pi
+                let r = sp.r0 + (sp.r1 - sp.r0) * u + sin(t * 3 + u * 11 + Double(index)) * 0.9
+                let px = 38 + r * cos(theta)
+                let py = 52 + 1.5 * r * sin(theta)
+                let taper = min(1, (grow - u) * 6 + 0.25) * min(1, (u - wither * grow) * 8 + 0.25)
+                let w = sp.width * (0.4 + 0.6 * sin(.pi * min(1, u * 1.05))) * taper
+                let rad = max(0.5, w / 2)
+                let n = Int(rad.rounded(.up))
+                for dy in -n ... n {
+                    for dx in -n ... n {
+                        let d = hypot(Double(dx), Double(dy))
+                        if d <= rad {
+                            pixel(&body, px + Double(dx), py + Double(dy))
+                            if d <= rad * 0.62 { pixel(&mid, px + Double(dx) - 0.5, py + Double(dy) - 0.5) }
+                            if d <= rad * 0.3 { pixel(&core, px + Double(dx) - 1, py + Double(dy) - 1) }
+                        }
+                    }
+                }
+            }
+        }
+        ctx.opacity = 0.96
+        ctx.fill(body, with: .color(Color(red: 0.42, green: 0.05, blue: 0.07)))
+        ctx.fill(mid, with: .color(Color(red: 0.69, green: 0.1, blue: 0.1)))
+        ctx.fill(core, with: .color(Color(red: 0.93, green: 0.22, blue: 0.18)))
+        ctx.opacity = 1
     }
 
     private static func drawSide(
@@ -225,11 +291,17 @@ struct RobotView: View {
         /// walking is the difference from the rest pose the legs are drawn in.
         let restSwingL = atan2(rig.hipL.x - rig.ankleL.x, rig.ankleL.y - rig.hipL.y)
         let restSwingR = atan2(rig.hipR.x - rig.ankleR.x, rig.ankleR.y - rig.hipR.y)
-        func angles(phase: Double, rest: Double) -> LegAngles {
+        func angles(phase: Double, rest: Double, front: Bool) -> LegAngles {
             let phi = pose.stepPhase + phase
             let swing = 0.06 + 0.38 * sin(phi)
             var thigh = pose.stepAmount * (swing - rest)
             var bend = -pose.stepAmount * 0.9 * pow(max(0, cos(phi)), 2)
+            if pose.kneel > 0 {
+                // one knee down: the front leg's thigh swings forward with the shin upright, the back thigh stays
+                // under the hip with the shin folded flat behind it
+                thigh += pose.kneel * (front ? 1.2 : -0.34)
+                bend += pose.kneel * (front ? -1.0 : -1.56)
+            }
             if pose.crouch > 0 {
                 thigh += pose.crouch * 0.5
                 bend += -pose.crouch * 0.95
@@ -240,9 +312,9 @@ struct RobotView: View {
             }
             return LegAngles(thigh: thigh, bend: bend)
         }
-        let la = angles(phase: 0, rest: restSwingL), ra = angles(phase: .pi, rest: restSwingR)
+        let la = angles(phase: 0, rest: restSwingL, front: false), ra = angles(phase: .pi, rest: restSwingR, front: true)
         /// The ankle stays nearly flat: the foot only follows the shin a little.
-        func footAngle(_ a: LegAngles) -> Double { (a.thigh + a.bend) * 0.25 }
+        func footAngle(_ a: LegAngles) -> Double { (a.thigh + a.bend) * 0.25 * (1 - pose.kneel) }
         func footY(_ a: LegAngles, hip: CGPoint, knee: CGPoint, ankle: CGPoint) -> Double {
             let k = rotate(knee, by: a.thigh, about: hip)
             let anklePos = rotate(CGPoint(x: k.x + (ankle.x - knee.x), y: k.y + (ankle.y - knee.y)),

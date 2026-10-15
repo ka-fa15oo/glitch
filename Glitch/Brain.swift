@@ -97,12 +97,16 @@ final class Brain {
         var carriedAmount = 0.0             // smoothed 0...1 versions of the flags below
         var fallAmount = 0.0
         var crouch = 0.0        // 0...1 knees bent (landing)
+        var kneel = 0.0         // 0...1 down on one knee (goodbye)
         var squash = 0.0        // 0...1 impact squash
         var falling = false
         var fling = 0.0         // -1...1 how hard it is being dragged sideways (sprite space)
         var carried = false
         var showQuit = false    // double-click reveals a close button
         var bloodAge = -1.0     // seconds since the blood ribbon was summoned; < 0 = none
+        var cocoonAge = -1.0    // seconds since blood started swirling round the whole body; < 0 = none
+        var cocoonHold = false  // true: the blood stays (goodbye) instead of withering
+        var reveal = 1.0        // 0...1 how visible the character is (fades in/out inside the blood)
         var hang = 0.0          // swing angle while carried (radians)
         var hangPivot = CGPoint(x: 39, y: 20)   // sprite point under the cursor
     }
@@ -120,6 +124,7 @@ final class Brain {
 
     private var action: (kind: Action, start: Double)?
     private var quitUntil = 0.0
+    private var appearStart: Double?
     private var smoothed = Pose()
     private var nearW = 1.0, farW = 0.0
     private var eyeShown: EyeKind = .open
@@ -163,7 +168,7 @@ final class Brain {
     private func duration(_ kind: Action) -> Double {
         switch kind {
         case .wake: 7.0
-        case .farewell: 3.0
+        case .farewell: 6.4
         case .sad: 2.8
         case .surprised: 0.9
         case .angry: 1.2
@@ -192,6 +197,7 @@ final class Brain {
 
     func start(_ kind: Action, at now: Double = CACurrentMediaTime(), silent: Bool = false) {
         action = (kind, now)
+        if kind == .wake { appearStart = now; action = (.wake, now + 2.4) }   // arrives inside the blood first
         if kind == .guard_ { guardKind = Guard.allCases.randomElement()! }
         walkTarget = nil
         if !silent, let effect = sound(for: kind) { onSound?(effect) }
@@ -304,7 +310,9 @@ final class Brain {
             applyDrop(now, to: &pose)
         } else if let current = action {
             let elapsed = now - current.start
-            if elapsed > duration(current.kind) {
+            if elapsed < 0 {
+                // waiting for the blood to clear before it moves
+            } else if elapsed > duration(current.kind) {
                 action = nil
             } else {
                 apply(current.kind, elapsed: elapsed, to: &pose)
@@ -313,6 +321,17 @@ final class Brain {
         if let a = action, a.kind == .swing, now - a.start >= 0.6, bloodStart < a.start { bloodStart = a.start + 0.6 }
         let age = now - bloodStart
         pose.bloodAge = (age >= 0 && age < 1.2) ? age : -1
+        if let a = appearStart {
+            let appeared = now - a
+            if appeared < 2.5 { pose.cocoonAge = appeared; pose.reveal = ease((appeared - 0.55) / 0.9) } else { appearStart = nil }
+        }
+        // goodbye: after the kneel the blood closes in and the character vanishes inside it
+        if let a = action, a.kind == .farewell, now - a.start > 3.5 {
+            let e = now - a.start
+            pose.cocoonAge = e - 3.5
+            pose.cocoonHold = true
+            pose.reveal = 1 - ease((e - 4.3) / 1.0)
+        }
         pose.view = .threeQuarter
 
         pose.showQuit = now < quitUntil
@@ -401,6 +420,7 @@ final class Brain {
         s.stepAmount += (target.stepAmount - s.stepAmount) * slow
         s.kick += (target.kick - s.kick) * slow
         s.crouch += (target.crouch - s.crouch) * fast
+        s.kneel += (target.kneel - s.kneel) * k(6)
         s.squash += (target.squash - s.squash) * fast
         s.fling += (target.fling - s.fling) * slow
         // hands: smooth where they are going, and how free of the hilt they are
@@ -430,6 +450,7 @@ final class Brain {
         out.torsoRot = s.torsoRot; out.shoulderLift = s.shoulderLift
         out.stepAmount = s.stepAmount; out.kick = s.kick
         out.crouch = s.crouch; out.squash = s.squash; out.fling = s.fling
+        out.kneel = s.kneel
         out.nearHand = nearW > 0.01 ? nearPos : nil
         out.farHand = farW > 0.01 ? farPos : nil
         out.nearWeight = nearW
@@ -610,8 +631,15 @@ final class Brain {
             let bow = ease((e - 0.9) / 0.5) * (1 - ease((e - 6.4) / 0.6))
             if bow > 0.01 { Self.applySalute(k: bow, to: &pose) }
         case .farewell:
-            // bow to say goodbye
-            Self.applySalute(k: ease(e / 0.4) * (1 - ease((e - 2.4) / 0.6)), to: &pose)
+            // slowly go down on one knee, sword planted, head bowed
+            let k = ease(e / 1.8) * (1 - ease((e - 5.6) / 0.8))   // down by 1.8 s, stays on the knee until the blood comes
+            pose.kneel = k
+            pose.nearHand = nil
+            pose.grip = lerp(pose.grip, CGPoint(x: -7, y: -27), k)
+            pose.swordRot += (-0.82 - pose.swordRot) * k   // blade straight down
+            pose.torsoRot += (-0.08 - pose.torsoRot) * k
+            pose.headDY += 2.4 * k
+            pose.headRot += 0.1 * k
         case .sad:
             pose.eyes = e < 1.4 ? .half : .closed
             pose.headDY = 2.5 * ease(e / 0.8)

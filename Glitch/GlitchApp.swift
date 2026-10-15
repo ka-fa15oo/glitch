@@ -117,9 +117,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return screen.visibleFrame.minY - CGFloat(RobotView.padBottom) * RobotView.scale
         }
         brain.start(.wake)
-        brainTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+        // common modes: the goodbye plays while a pending terminate has the run loop in the modal mode
+        brainTimer?.invalidate()
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.brain.update(at: CACurrentMediaTime()) }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        brainTimer = timer
 
         let workspace = NSWorkspace.shared.notificationCenter
         workspace.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
@@ -175,7 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let size = window.frame.size
                 let p = event.locationInWindow
                 if RobotView.quitRect.contains(CGPoint(x: p.x, y: size.height - p.y)) {
-                    NSApp.terminate(nil)
+                    quitWithGoodbye()
                 }
             } else if let down = mouseDownAt {
                 let moved = hypot(mouse.x - down.mouse.x, mouse.y - down.mouse.y)
@@ -209,9 +213,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                           height: f.maxY - floor - window.frame.height + CGFloat(RobotView.padTop) * RobotView.scale)
         }
         brain.start(.wake)
-        brainTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+        // common modes: the goodbye plays while a pending terminate has the run loop in the modal mode
+        brainTimer?.invalidate()
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.brain.update(at: CACurrentMediaTime()) }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        brainTimer = timer
         }
     }
 
@@ -234,11 +242,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - goodbye wave before quitting
 
+    /// The close button: kneel and sink into the blood first, then quit.
+    private func quitWithGoodbye() {
+        guard !farewellDone else { return }
+        farewellDone = true
+        brain.start(.farewell)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.6) { NSApp.terminate(nil) }
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if farewellDone || window == nil || !(window?.isVisible ?? false) { return .terminateNow }
         farewellDone = true
         brain.start(.farewell)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.6) {
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
@@ -258,6 +274,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "sad": pose.eyes = .half; pose.headDY = 2.5; pose.headRot = 0.07
         case "glitch": pose.glitch = 1
         case "quit": pose.showQuit = true
+        case "cocoon0": pose.cocoonAge = 0.5; pose.reveal = 0
+        case "cocoon1": pose.cocoonAge = 1.2; pose.reveal = 0.5
+        case "cocoon2": pose.cocoonAge = 2.0; pose.reveal = 1
+        case "goodbye2": pose.kneel = 1; pose.nearHand = nil; pose.grip = CGPoint(x: -7, y: -27); pose.swordRot = -0.82; pose.torsoRot = -0.08; pose.headDY = 2.4; pose.headRot = 0.1; pose.cocoonAge = 2.2; pose.cocoonHold = true; pose.reveal = 0.2
+        case "goodbye": pose.kneel = 1; pose.nearHand = nil; pose.grip = CGPoint(x: -7, y: -27); pose.swordRot = -0.82; pose.torsoRot = -0.08; pose.headDY = 2.4; pose.headRot = 0.1; pose.cocoonAge = 1.0; pose.cocoonHold = true; pose.reveal = 0.55
         case "fall": pose.falling = true; pose.eyes = .wide; pose.kick = 0.5; pose.kickPhase = 1
             pose.nearHand = CGPoint(x: 63, y: 23); pose.farHand = CGPoint(x: 18, y: 23); pose.headRot = -0.08
         case "impact": pose.squash = 0.9; pose.crouch = 0.9; pose.eyes = .wide; pose.torsoRot = -0.1; pose.headDY = 1.5
@@ -276,6 +297,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "walk2": pose.stepAmount = 1; pose.stepPhase = 1.2 + .pi; pose.facingRight = true; pose.bodyDY = -1
         case "carried": pose.carried = true; pose.hang = 0.15; pose.kick = 1; pose.kickPhase = 1.0; pose.eyes = .angry
             pose.grip = CGPoint(x: 4, y: -3); pose.swordRot = 0.5; pose.bodyDY = 1.5
+        case "kneel": pose.kneel = 1; pose.nearHand = nil; pose.grip = CGPoint(x: -7, y: -27); pose.swordRot = -0.82; pose.torsoRot = -0.08; pose.headDY = 2.4; pose.headRot = 0.1
+        case "kneel2": pose.kneel = 0.5; pose.nearHand = nil; pose.grip = CGPoint(x: -1, y: -9); pose.torsoRot = -0.02; pose.headDY = 1.2; pose.headRot = 0.05
         case "planted": Brain.applyStance(.planted, to: &pose)
         case "twohand": Brain.applyStance(.twoHand, to: &pose)
         case "salute": Brain.applySalute(k: 1, to: &pose)
