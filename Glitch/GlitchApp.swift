@@ -247,14 +247,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !farewellDone else { return }
         farewellDone = true
         brain.start(.farewell)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.6) { NSApp.terminate(nil) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.8) { NSApp.terminate(nil) }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if farewellDone || window == nil || !(window?.isVisible ?? false) { return .terminateNow }
         farewellDone = true
         brain.start(.farewell)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.6) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.8) {
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater

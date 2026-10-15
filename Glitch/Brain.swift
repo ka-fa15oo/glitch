@@ -326,11 +326,11 @@ final class Brain {
             if appeared < 2.5 { pose.cocoonAge = appeared; pose.reveal = ease((appeared - 0.55) / 0.9) } else { appearStart = nil }
         }
         // goodbye: after the kneel the blood closes in and the character vanishes inside it
-        if let a = action, a.kind == .farewell, now - a.start > 3.5 {
+        if let a = action, a.kind == .farewell, now - a.start > 1.8 {
             let e = now - a.start
-            pose.cocoonAge = e - 3.5
+            pose.cocoonAge = e - 1.8                       // the pool starts the moment the knee touches down
             pose.cocoonHold = true
-            pose.reveal = 1 - ease((e - 4.3) / 1.0)
+            pose.reveal = 1 - ease((e - 3.5) / 1.0)        // it waits on its knee in the blood, then sinks
         }
         pose.view = .threeQuarter
 
