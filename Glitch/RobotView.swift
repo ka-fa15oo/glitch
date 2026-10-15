@@ -9,8 +9,8 @@ struct RobotView: View {
         height: CGFloat(Sprite.height + padTop + padBottom) * scale
     )
 
-    /// The close button revealed by a double-click, in view coordinates (origin top-left).
-    static let quitRect = CGRect(x: canvasSize.width - 34, y: 4, width: 28, height: 28)
+    /// The grave-cross revealed by a double-click, right above the head (view coordinates, origin top-left).
+    static let quitRect = CGRect(x: canvasSize.width / 2 - 11, y: 18, width: 22, height: 22)
 
     var brain: Brain?
     var fixedTime: Double?
@@ -63,12 +63,11 @@ struct RobotView: View {
         .frame(width: Self.canvasSize.width, height: Self.canvasSize.height)
         .overlay(alignment: .topLeading) {
             if pose.showQuit {
-                Text("✕")
-                    .font(.system(size: 15, weight: .heavy))
-                    .foregroundStyle(Color(red: 0.96, green: 0.82, blue: 0.82))
+                Text("†")
+                    .font(.system(size: 17, weight: .bold, design: .serif))
+                    .foregroundStyle(Color(red: 0.93, green: 0.35, blue: 0.35))
+                    .shadow(color: Color(red: 0.1, green: 0.0, blue: 0.02), radius: 0, x: 1, y: 1)
                     .frame(width: Self.quitRect.width, height: Self.quitRect.height)
-                    .background(Color(red: 0.16, green: 0.03, blue: 0.06))
-                    .overlay(Rectangle().stroke(Color(red: 0.85, green: 0.1, blue: 0.2), lineWidth: 2))
                     .offset(x: Self.quitRect.minX, y: Self.quitRect.minY)
                     .allowsHitTesting(false)
             }
