@@ -98,6 +98,7 @@ final class Brain {
         var fallAmount = 0.0
         var crouch = 0.0        // 0...1 knees bent (landing)
         var kneel = 0.0         // 0...1 down on one knee (goodbye)
+        var wind = 0.0          // 0...1 gale blowing the cape to one side (arrival and goodbye)
         var squash = 0.0        // 0...1 impact squash
         var falling = false
         var fling = 0.0         // -1...1 how hard it is being dragged sideways (sprite space)
@@ -332,6 +333,8 @@ final class Brain {
             pose.cocoonHold = true
             pose.reveal = 1 - ease((e - 3.5) / 1.0)        // it waits on its knee in the blood, then sinks
         }
+        // a gale while the blood is around (arrival: first 2 s; goodbye: as long as it stays)
+        pose.wind = pose.cocoonAge >= 0 && (pose.cocoonHold || pose.cocoonAge < 2.0) ? 1 : 0
         pose.view = .threeQuarter
 
         pose.showQuit = now < quitUntil
@@ -421,6 +424,7 @@ final class Brain {
         s.kick += (target.kick - s.kick) * slow
         s.crouch += (target.crouch - s.crouch) * fast
         s.kneel += (target.kneel - s.kneel) * k(6)
+        s.wind += (target.wind - s.wind) * k(3)
         s.squash += (target.squash - s.squash) * fast
         s.fling += (target.fling - s.fling) * slow
         // hands: smooth where they are going, and how free of the hilt they are
@@ -451,6 +455,7 @@ final class Brain {
         out.stepAmount = s.stepAmount; out.kick = s.kick
         out.crouch = s.crouch; out.squash = s.squash; out.fling = s.fling
         out.kneel = s.kneel
+        out.wind = s.wind
         out.nearHand = nearW > 0.01 ? nearPos : nil
         out.farHand = farW > 0.01 ? farPos : nil
         out.nearWeight = nearW

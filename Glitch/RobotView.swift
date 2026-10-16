@@ -296,15 +296,23 @@ struct RobotView: View {
 
         // cape: each 2px row sways on its own, more towards the hem, more when walking
         func drawCape() {
-            let wind = 1.0 + 0.8 * pose.stepAmount + 0.8 * pose.carriedAmount + 1.6 * pose.fallAmount + 1.2 * abs(pose.fling)
+            let flutter = 1.0 + 0.8 * pose.stepAmount + 0.8 * pose.carriedAmount + 1.6 * pose.fallAmount
+                + 2.2 * abs(pose.fling) + 2.0 * pose.wind
             let streamBase = pose.view == .threeQuarter ? 2.6 : 0.6
             for (i, row) in set.capeRows.enumerated() {
                 let y = Double(i * 2)
                 let k = max(0, (y - 28) / 60)
-                let wave = (sin(t * 2 * .pi / 4.6 - k * 2.2) * 1.8 + sin(t * 2 * .pi / 2.7 - k * 3.1) * 0.7) * wind
-                let flingShift = -pose.fling * 7 * k * k - 5 * pose.fallAmount * k * k
-                let dx = (wave * k * k - bx * k - pose.torsoRot * 6 * (1 - k) + flingShift + streamBase * k * k).rounded()
-                let rect = CGRect(x: dx * unit, y: (y + breath * 0.2 + by) * unit, width: size.width, height: 2 * unit + 0.6)
+                let kk = k * k
+                var wave = (sin(t * 2 * .pi / 4.6 - k * 2.2) * 1.8 + sin(t * 2 * .pi / 2.7 - k * 3.1) * 0.7) * flutter
+                // fast ripples run down the cloth in a fall or a gale
+                wave += sin(t * 16 - k * 6 + Double(i) * 0.25) * 1.5 * (pose.fallAmount + pose.wind + abs(pose.fling)) * k
+                // dragged: trails behind the pull; falling: the hem is thrown up and flares out; gale: blown to one side
+                let flingShift = -pose.fling * 13 * kk + pose.wind * 22 * kk
+                let lift = (15 * pose.fallAmount + 7 * abs(pose.fling) + 5 * pose.wind) * kk
+                let flare = 1 + 0.35 * pose.fallAmount * kk
+                let dx = (wave * kk - bx * k - pose.torsoRot * 6 * (1 - k) + flingShift + streamBase * kk).rounded()
+                let rect = CGRect(x: (dx + (1 - flare) * 38) * unit, y: (y + breath * 0.2 + by - lift) * unit,
+                                  width: size.width * flare, height: 2 * unit + 0.6)
                 ctx.draw(Image(decorative: row, scale: 1).interpolation(.none), in: rect)
             }
         }

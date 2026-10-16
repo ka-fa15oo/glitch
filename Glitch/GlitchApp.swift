@@ -279,7 +279,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "cocoon2": pose.cocoonAge = 2.0; pose.reveal = 1
         case "goodbye2": pose.kneel = 1; pose.nearHand = nil; pose.grip = CGPoint(x: -7, y: -27); pose.swordRot = -0.82; pose.torsoRot = -0.08; pose.headDY = 2.4; pose.headRot = 0.1; pose.cocoonAge = 2.2; pose.cocoonHold = true; pose.reveal = 0.2
         case "goodbye": pose.kneel = 1; pose.nearHand = nil; pose.grip = CGPoint(x: -7, y: -27); pose.swordRot = -0.82; pose.torsoRot = -0.08; pose.headDY = 2.4; pose.headRot = 0.1; pose.cocoonAge = 1.0; pose.cocoonHold = true; pose.reveal = 0.55
-        case "fall": pose.falling = true; pose.eyes = .wide; pose.kick = 0.5; pose.kickPhase = 1
+        case "wind": pose.wind = 1; pose.eyes = .open
+        case "fling": pose.carried = true; pose.carriedAmount = 1; pose.fling = 0.9; pose.hang = 0.12; pose.kick = 0.3; pose.kickPhase = 1; pose.eyes = .angry
+        case "fall": pose.fallAmount = 1; pose.falling = true; pose.eyes = .wide; pose.kick = 0.5; pose.kickPhase = 1
             pose.nearHand = CGPoint(x: 63, y: 23); pose.farHand = CGPoint(x: 18, y: 23); pose.headRot = -0.08
         case "impact": pose.squash = 0.9; pose.crouch = 0.9; pose.eyes = .wide; pose.torsoRot = -0.1; pose.headDY = 1.5
             pose.nearHand = CGPoint(x: 60, y: 34)
