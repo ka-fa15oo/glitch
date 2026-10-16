@@ -314,7 +314,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "vomtag": Brain.applyGuard(.vomTag, k: 1, to: &pose)
         case "stretch": pose.nearHand = CGPoint(x: 63, y: 18); pose.farHand = CGPoint(x: 17, y: 18); pose.farWeight = 1; pose.eyes = .open
         default:
-            if mood.hasPrefix("blood:"), let age = Double(mood.dropFirst(6)) { pose.bloodAge = age }
+            if mood.hasPrefix("land:"), let e = Double(mood.dropFirst(5)) {
+                pose.splashAge = e; pose.kneel = min(1, e / 0.12 + 0.3); pose.nearHand = nil
+                pose.grip = CGPoint(x: -7, y: -27); pose.swordRot = -0.82; pose.torsoRot = -0.08
+                pose.headDY = 2.4; pose.headRot = 0.1; pose.squash = 0.7 * max(0, 1 - e / 0.35)
+            }
+            else if mood.hasPrefix("rise:"), let age = Double(mood.dropFirst(5)) {
+                pose.cocoonAge = age
+                pose.reveal = max(0, min(1, (age - 0.55) / 0.9))
+            }
+            else if mood.hasPrefix("blood:"), let age = Double(mood.dropFirst(6)) { pose.bloodAge = age }
             else if mood.hasPrefix("walk:"), let phase = Double(mood.dropFirst(5)) {
                 pose.stepAmount = 1; pose.stepPhase = phase; pose.facingRight = false
             }

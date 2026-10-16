@@ -218,10 +218,11 @@ struct RobotView: View {
                 drawSide(&c, unit: unit, size: size, t: t, pose: pose, shadow: true)
             }
             if pose.cocoonAge >= 0 {
-                BloodFX.draw(&outer, unit: unit, age: pose.cocoonAge, hold: pose.cocoonHold, t: t)
+                BloodRise.draw(&outer, unit: unit, age: pose.cocoonAge, t: t)
             }
         } else {
             drawSide(&outer, unit: unit, size: size, t: t, pose: pose, shadow: true)
+            if pose.splashAge >= 0 { BloodRise.drawSplash(&outer, unit: unit, age: pose.splashAge, t: t) }
         }
     }
 

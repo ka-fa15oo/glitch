@@ -98,6 +98,7 @@ final class Brain {
         var fallAmount = 0.0
         var crouch = 0.0        // 0...1 knees bent (landing)
         var kneel = 0.0         // 0...1 down on one knee (goodbye)
+        var splashAge = -1.0    // seconds since the landing splash began; < 0 = none
         var wind = 0.0          // 0...1 gale blowing the cape to one side (arrival and goodbye)
         var squash = 0.0        // 0...1 impact squash
         var falling = false
@@ -126,6 +127,8 @@ final class Brain {
     private var action: (kind: Action, start: Double)?
     private var quitUntil = 0.0
     private var appearStart: Double?
+    private struct Landing { var impact: Double?; var vy = 0.0; var x: Double }
+    private var landing: Landing?        // arrival: drops from the top of the screen in a hero landing
     private var smoothed = Pose()
     private var nearW = 1.0, farW = 0.0
     private var eyeShown: EyeKind = .open
@@ -198,10 +201,58 @@ final class Brain {
 
     func start(_ kind: Action, at now: Double = CACurrentMediaTime(), silent: Bool = false) {
         action = (kind, now)
-        if kind == .wake { appearStart = now; action = (.wake, now + 2.4) }   // arrives inside the blood first
+        if kind == .wake, !beginLanding() { appearStart = now; action = (.wake, now + 2.4) }   // no room to fall: arrive inside the blood
         if kind == .guard_ { guardKind = Guard.allCases.randomElement()! }
         walkTarget = nil
         if !silent, let effect = sound(for: kind) { onSound?(effect) }
+    }
+
+    /// Puts the window above the screen, over the middle third of its width; `update` drops it from there.
+    private func beginLanding() -> Bool {
+        let bounds = walkBounds()
+        guard gravityEnabled, bounds.width > 10, bounds.height > 10 else { return false }
+        let x = bounds.minX + bounds.width * .random(in: 1.0 / 3 ... 2.0 / 3)
+        setWindowOrigin(CGPoint(x: x, y: bounds.maxY + 270))   // 270 pt = more than the window height
+        landing = Landing(x: x)
+        action = nil
+        drop = .none
+        return true
+    }
+
+    private func stepLanding(dt: Double, now: Double) {
+        guard var l = landing else { return }
+        if let impact = l.impact {
+            if now - impact > 2.7 { landing = nil; nextAuto = now + .random(in: 6 ... 12); return }
+        } else {
+            l.vy += 6000 * dt
+            let y = windowOrigin().y - l.vy * dt
+            if y <= groundY() {
+                setWindowOrigin(CGPoint(x: l.x, y: groundY()))
+                l.impact = now
+                onSound?(.thud)
+            } else {
+                setWindowOrigin(CGPoint(x: l.x, y: y))
+            }
+        }
+        landing = l
+    }
+
+    private func applyLanding(_ l: Landing, now: Double, to pose: inout Pose) {
+        Self.applyStance(.planted, to: &pose)       // diving sword-first
+        guard let impact = l.impact else { pose.falling = true; return }
+        let e = now - impact
+        // slams onto one knee with the sword driven into the ground, holds, then stands up slowly
+        let k = ease(e / 0.12) * (1 - ease((e - 1.4) / 1.2))
+        pose.kneel = k
+        pose.grip = lerp(pose.grip, CGPoint(x: -7, y: -27), k)
+        pose.swordRot += (-0.82 - pose.swordRot) * k
+        pose.torsoRot += (-0.08 - pose.torsoRot) * k
+        pose.headDY += 2.4 * k
+        pose.headRot += 0.1 * k
+        let hit = max(0, 1 - e / 0.35)
+        pose.squash = 0.7 * hit
+        pose.shakeX = sin(e * 80) * 0.9 * hit
+        pose.splashAge = e
     }
 
     /// The user is carrying the window. `mouseX` is in screen points.
@@ -213,6 +264,7 @@ final class Brain {
         if !(now - lastMove < 0.25) {
             carriedSince = now
             action = nil
+            landing = nil
             drop = .none
             dragVX = 0
             gaveUp = false
@@ -254,8 +306,9 @@ final class Brain {
 
         let dropping: Bool
         if case .none = drop { dropping = false } else { dropping = true }
-        if !dropping { schedule(now) }
+        if !dropping, landing == nil { schedule(now) }
         stepFall(dt: dt, now: now)
+        stepLanding(dt: dt, now: now)
 
         // wandering
         if let target = walkTarget {
@@ -307,6 +360,8 @@ final class Brain {
 
         if carried {
             applyCarried(now, to: &pose)
+        } else if let l = landing {
+            applyLanding(l, now: now, to: &pose)
         } else if dropping {
             applyDrop(now, to: &pose)
         } else if let current = action {
