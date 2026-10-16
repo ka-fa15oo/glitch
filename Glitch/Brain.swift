@@ -168,7 +168,7 @@ final class Brain {
 
     private func duration(_ kind: Action) -> Double {
         switch kind {
-        case .wake: 7.0
+        case .wake: 3.0
         case .farewell: 6.4
         case .sad: 2.8
         case .surprised: 0.9
@@ -224,16 +224,16 @@ final class Brain {
         walkTarget = nil
     }
 
-    /// Double-click: show the close button for a few seconds.
+    /// Double-click: show the close cross for a few seconds; another double-click hides it again.
     func revealQuitButton(at now: Double = CACurrentMediaTime()) {
-        quitUntil = now + 5
+        quitUntil = now < quitUntil ? 0 : now + 5
     }
 
     var quitButtonVisible: Bool { CACurrentMediaTime() < quitUntil }
 
     /// A click: a silent sword swing.
     func clicked(at now: Double = CACurrentMediaTime()) {
-        start(.swing, at: now, silent: true)
+        // shortcut: a click does nothing for now (the sword swing felt too slow); give it a new reaction later
     }
 
     // MARK: - per frame
@@ -326,12 +326,14 @@ final class Brain {
             let appeared = now - a
             if appeared < 2.5 { pose.cocoonAge = appeared; pose.reveal = ease((appeared - 0.55) / 0.9) } else { appearStart = nil }
         }
-        // goodbye: after the kneel the blood closes in and the character vanishes inside it
+        // goodbye: after the kneel a blood storm whirls round it, swallows it and dies down where it stands
         if let a = action, a.kind == .farewell, now - a.start > 1.8 {
             let e = now - a.start
-            pose.cocoonAge = e - 1.8                       // the pool starts the moment the knee touches down
+            pose.cocoonAge = e - 1.8                       // the blood storm rises the moment the knee touches down
             pose.cocoonHold = true
-            pose.reveal = 1 - ease((e - 3.5) / 1.0)        // it waits on its knee in the blood, then sinks
+            // barely visible inside the storm almost at once, gone by the time it dies down
+            pose.reveal = 1 - 0.8 * ease((e - 1.8) / 0.5) - 0.2 * ease((e - 3.0) / 0.8)
+            pose.shakeX += sin(now * 70) * 0.6 * min(1, (e - 1.8) / 0.8) * pose.reveal
         }
         // a gale while the blood is around (arrival: first 2 s; goodbye: as long as it stays)
         pose.wind = pose.cocoonAge >= 0 && (pose.cocoonHold || pose.cocoonAge < 2.0) ? 1 : 0
@@ -365,7 +367,7 @@ final class Brain {
             start(.glitch, at: now)
             nextGlitch = now + .random(in: 15 ... 40)
         } else if walkTarget == nil, now > nextAuto {
-            start([.look, .swing, .look, .happy, .guard_].randomElement()!, at: now)
+            start([.look, .look, .happy, .guard_].randomElement()!, at: now)   // no sword swing on its own for now
             nextAuto = now + .random(in: 10 ... 25)
         } else if walkTarget == nil, !mouseNear, now > nextWander {
             beginWalk(at: now)
@@ -633,7 +635,7 @@ final class Brain {
             pose.headDY = 3 * (1 - ease(e / 1.6))
             pose.eyeDX = 0
             // knightly salute: fist to the chest, head bowed, then back up
-            let bow = ease((e - 0.9) / 0.5) * (1 - ease((e - 6.4) / 0.6))
+            let bow = ease((e - 0.9) / 0.5) * (1 - ease((e - 2.2) / 0.6))
             if bow > 0.01 { Self.applySalute(k: bow, to: &pose) }
         case .farewell:
             // slowly go down on one knee, sword planted, head bowed

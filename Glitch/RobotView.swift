@@ -199,8 +199,18 @@ struct RobotView: View {
     private static func drawCharacter(
         _ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose
     ) {
-        if pose.reveal < 0.999 || pose.cocoonAge >= 0 {
-            // appearing / disappearing inside the blood: the character fades under swirling ribbons
+        if pose.cocoonAge >= 0, pose.cocoonHold {
+            // goodbye: a blood storm whirls round the kneeling knight and takes it away
+            BloodStorm.draw(&outer, unit: unit, age: pose.cocoonAge, t: t, side: .behind)
+            var layer = outer
+            layer.opacity = max(0, min(1, pose.reveal))
+            layer.drawLayer { inner in
+                var c = inner
+                drawSide(&c, unit: unit, size: size, t: t, pose: pose, shadow: true)
+            }
+            BloodStorm.draw(&outer, unit: unit, age: pose.cocoonAge, t: t, side: .inFront)
+        } else if pose.reveal < 0.999 || pose.cocoonAge >= 0 {
+            // appearing inside the blood: the character fades in as the blood rises and falls away
             var layer = outer
             layer.opacity = max(0, min(1, pose.reveal))
             layer.drawLayer { inner in
@@ -296,19 +306,19 @@ struct RobotView: View {
 
         // cape: each 2px row sways on its own, more towards the hem, more when walking
         func drawCape() {
-            let flutter = 1.0 + 0.8 * pose.stepAmount + 0.8 * pose.carriedAmount + 1.6 * pose.fallAmount
-                + 2.2 * abs(pose.fling) + 2.0 * pose.wind
+            let flutter = 1.8 + 1.4 * pose.stepAmount + 1.4 * pose.carriedAmount + 2.8 * pose.fallAmount
+                + 3.8 * abs(pose.fling) + 3.6 * pose.wind
             let streamBase = pose.view == .threeQuarter ? 2.6 : 0.6
             for (i, row) in set.capeRows.enumerated() {
                 let y = Double(i * 2)
                 let k = max(0, (y - 28) / 60)
                 let kk = k * k
-                var wave = (sin(t * 2 * .pi / 4.6 - k * 2.2) * 1.8 + sin(t * 2 * .pi / 2.7 - k * 3.1) * 0.7) * flutter
+                var wave = (sin(t * 2 * .pi / 3.4 - k * 2.4) * 2.4 + sin(t * 2 * .pi / 1.9 - k * 3.4) * 1.1) * flutter
                 // fast ripples run down the cloth in a fall or a gale
-                wave += sin(t * 16 - k * 6 + Double(i) * 0.25) * 1.5 * (pose.fallAmount + pose.wind + abs(pose.fling)) * k
+                wave += sin(t * 16 - k * 6 + Double(i) * 0.25) * (0.5 + 3.2 * (pose.fallAmount + pose.wind + abs(pose.fling))) * k
                 // dragged: trails behind the pull; falling: the hem is thrown up and flares out; gale: blown to one side
-                let flingShift = -pose.fling * 13 * kk + pose.wind * 22 * kk
-                let lift = (15 * pose.fallAmount + 7 * abs(pose.fling) + 5 * pose.wind) * kk
+                let flingShift = -pose.fling * 22 * kk + pose.wind * 32 * kk
+                let lift = (22 * pose.fallAmount + 12 * abs(pose.fling) + 9 * pose.wind) * kk
                 let flare = 1 + 0.35 * pose.fallAmount * kk
                 let dx = (wave * kk - bx * k - pose.torsoRot * 6 * (1 - k) + flingShift + streamBase * kk).rounded()
                 let rect = CGRect(x: (dx + (1 - flare) * 38) * unit, y: (y + breath * 0.2 + by - lift) * unit,

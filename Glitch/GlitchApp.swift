@@ -274,6 +274,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "sad": pose.eyes = .half; pose.headDY = 2.5; pose.headRot = 0.07
         case "glitch": pose.glitch = 1
         case "quit": pose.showQuit = true
+        case "storm1", "storm2", "storm3":
+            pose.kneel = 1; pose.nearHand = nil; pose.grip = CGPoint(x: -7, y: -27); pose.swordRot = -0.82
+            pose.torsoRot = -0.08; pose.headDY = 2.4; pose.headRot = 0.1; pose.cocoonHold = true; pose.wind = 1
+            pose.cocoonAge = mood == "storm1" ? 0.35 : (mood == "storm2" ? 1.3 : 2.35)
+            pose.reveal = mood == "storm1" ? 0.35 : (mood == "storm2" ? 0.2 : 0)
         case "cocoon0": pose.cocoonAge = 0.5; pose.reveal = 0
         case "cocoon1": pose.cocoonAge = 1.2; pose.reveal = 0.5
         case "cocoon2": pose.cocoonAge = 2.0; pose.reveal = 1
