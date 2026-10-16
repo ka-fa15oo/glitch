@@ -61,6 +61,39 @@ enum Sprite {
         uniqueKeysWithValues: ViewKind.allCases.map { ($0, SpriteSet(prefix: $0.prefix)) }
     )
 
+    /// Which pixels of the 72x96 grid the standing character covers (all body parts plus the sword at rest),
+    /// so clicks only count on the character itself and fall through everywhere else.
+    /// shortcut: built from the rest pose; a raised arm or sword mid-move is matched only near its rest place.
+    static let hitMask: [Bool] = {
+        let set = sets[.threeQuarter]!
+        let parts = [set.cape, set.thighL, set.shinL, set.footL, set.thighR, set.shinR, set.footR, set.sash, set.tunic,
+                     set.cloak, set.pauldronFar, set.pauldronNear, set.armFarUpper, set.armFarFore, set.armNearUpper,
+                     set.armNearFore, set.head]
+        var data = [UInt8](repeating: 0, count: width * height * 4)
+        data.withUnsafeMutableBytes { buffer in
+            guard let ctx = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                                      bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+            let full = CGRect(x: 0, y: 0, width: width, height: height)
+            for image in parts { ctx.draw(image, in: full) }
+            // the sword hangs at the hip, shifted from where its PNG puts it (art y grows down, CG y grows up)
+            let shift = CGPoint(x: Skeleton.grip.x - Skeleton.spriteGrip.x, y: Skeleton.grip.y - Skeleton.spriteGrip.y)
+            ctx.draw(sword, in: full.offsetBy(dx: shift.x, dy: -shift.y))
+        }
+        return (0 ..< width * height).map { data[$0 * 4 + 3] > 20 }
+    }()
+
+    /// True when (x, y) on the sprite grid, or a pixel right next to it, is part of the character.
+    static func hit(_ x: Int, _ y: Int) -> Bool {
+        for dy in -1 ... 1 {
+            for dx in -1 ... 1 {
+                let px = x + dx, py = y + dy
+                if px >= 0, py >= 0, px < width, py < height, hitMask[py * width + px] { return true }
+            }
+        }
+        return false
+    }
+
     private static func loadShared(_ name: String) -> CGImage {
         guard let url = Bundle.main.url(forResource: name, withExtension: "png"),
               let image = NSImage(contentsOf: url),

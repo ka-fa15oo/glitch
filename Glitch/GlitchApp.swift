@@ -60,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
     private var clickMonitor: Any?
     private var mouseDownAt: (time: Double, origin: CGPoint, mouse: CGPoint)?
+    private var hoverTimer: Timer?
     private var pressedQuitButton = false
     private var fullscreenTimer: Timer?
     private var brainTimer: Timer?
@@ -141,6 +142,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return event
         }
 
+        // clicks only land on the character's own pixels; the empty rest of the window lets them through
+        hoverTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateClickThrough() }
+        }
+
         fullscreenTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.updateVisibility() }
         }
@@ -191,6 +197,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         default:
             break
         }
+    }
+
+    // MARK: - click-through outside the character
+
+    private func updateClickThrough() {
+        guard let window else { return }
+        if mouseDownAt != nil {            // keep holding a drag even when the cursor leaves the body
+            window.ignoresMouseEvents = false
+            return
+        }
+        window.ignoresMouseEvents = !isOverCharacter(window.mouseLocationOutsideOfEventStream, in: window)
+    }
+
+    /// `point` is in window coordinates (origin bottom-left).
+    private func isOverCharacter(_ point: NSPoint, in window: NSWindow) -> Bool {
+        let size = window.frame.size
+        let top = CGPoint(x: point.x, y: size.height - point.y)
+        if brain.quitButtonVisible, RobotView.quitRect.insetBy(dx: -4, dy: -4).contains(top) { return true }
+        let pose = brain.current
+        let x = pose.facingRight ? size.width - top.x : top.x
+        let ax = Int(floor(x / RobotView.scale)) - RobotView.padLeft
+        let ay = Int(floor(top.y / RobotView.scale - pose.bodyDY)) - RobotView.padTop
+        return Sprite.hit(ax, ay)
     }
 
     // MARK: - hide while a fullscreen app is up
