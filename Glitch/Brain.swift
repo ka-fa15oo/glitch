@@ -36,6 +36,18 @@ final class Brain {
         }
     }
 
+    /// Permission barrier: the sword held level across the chest like the bar of a gate, one hand on the hilt and
+    /// the other on the blade, feet planted. `k` 0...1.
+    static func applyBarrier(k: Double, to pose: inout Pose) {
+        pose.nearHand = nil
+        pose.grip = lerp(pose.grip, CGPoint(x: 13, y: -12), k)
+        pose.swordRot += (0.75 - pose.swordRot) * k
+        pose.farHand = lerp(Skeleton.handFar, CGPoint(x: 30, y: 47), k)
+        pose.torsoRot += (0.05 - pose.torsoRot) * k
+        pose.shoulderLift += (0.8 - pose.shoulderLift) * k
+        pose.crouch = 0.08 * k
+    }
+
     /// `k` 0...1 is how far into the guard it is.
     static func applyGuard(_ guardKind: Guard, k: Double, to pose: inout Pose) {
         let goal: (grip: CGPoint, rot: Double, torso: Double, lift: Double)
@@ -132,6 +144,10 @@ final class Brain {
     private var quitUntil = 0.0
     private var appearStart: Double?
     private struct Landing { var impact: Double?; var vy = 0.0; var x: Double }
+    var sentinelHold = SentinelHold.none      // set by the sentinel (Brain+Sentinel API below)
+    private var holdSince = 0.0
+    private var flareUntil = 0.0
+    private(set) var redSparks = 0, goldSparks = 0
     private var landing: Landing?        // arrival: drops from the top of the screen in a hero landing
     private var smoothed = Pose()
     private var nearW = 1.0, farW = 0.0
@@ -239,6 +255,17 @@ final class Brain {
             }
         }
         landing = l
+    }
+
+    private func applySentinel(_ now: Double, to pose: inout Pose) {
+        let k = ease((now - holdSince) / 0.5)
+        switch sentinelHold {
+        case .none: break
+        case .barrier:
+            Self.applyBarrier(k: k, to: &pose)
+            if now < flareUntil { pose.eyes = .wide }      // the eyes flare once as the sword comes up
+        case .attend: break
+        }
     }
 
     private func applyLanding(_ l: Landing, now: Double, to pose: inout Pose) {
@@ -385,6 +412,8 @@ final class Brain {
             } else {
                 apply(current.kind, elapsed: elapsed, to: &pose)
             }
+        } else if sentinelHold != .none {
+            applySentinel(now, to: &pose)
         }
         if let a = action, a.kind == .swing, now - a.start >= 0.6, bloodStart < a.start { bloodStart = a.start + 0.6 }
         let age = now - bloodStart
@@ -415,17 +444,18 @@ final class Brain {
             blinkUntil = now + 0.17
             nextBlink = now + .random(in: 2.5 ... 6)
         }
-        if now > nextDrift {
+        let idle = sentinelHold == .none      // a held sentinel pose suspends the idle life (blinking stays)
+        if idle, now > nextDrift {
             driftDX = [-2, -1, 1, 2].randomElement()!
             driftUntil = now + .random(in: 0.8 ... 2.0)
             nextDrift = driftUntil + .random(in: 1 ... 4)
         }
-        if now > nextTic {
+        if idle, now > nextTic {
             ticUntil = now + 0.14
             ticSign = Bool.random() ? 1 : -1
             nextTic = now + .random(in: 3 ... 8)
         }
-        guard action == nil, now - lastMove > 1.0 else { return }
+        guard action == nil, now - lastMove > 1.0, idle else { return }
         if now > nextStance {
             stance = Stance.allCases.filter { $0 != stance }.randomElement()!
             nextStance = now + .random(in: 45 ... 100)
@@ -824,4 +854,24 @@ final class Brain {
     }
 
     private func lerp(_ a: CGPoint, _ b: CGPoint, _ t: Double) -> CGPoint { Self.lerp(a, b, t) }
+}
+
+// MARK: - sentinel API (called by the Claude Code sentinel)
+
+extension Brain {
+    /// barrier = a permission is waiting, attend = Claude asked a question.
+    enum SentinelHold: Equatable { case none, barrier, attend }
+
+    func setSentinel(hold: SentinelHold, redSparks: Int, goldSparks: Int, at now: Double = CACurrentMediaTime()) {
+        self.redSparks = redSparks
+        self.goldSparks = goldSparks
+        guard hold != sentinelHold else { return }
+        sentinelHold = hold
+        holdSince = now
+        walkTarget = nil
+        if hold == .barrier {
+            flareUntil = now + 0.3
+            onSound?(.clang)
+        }
+    }
 }

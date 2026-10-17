@@ -1,7 +1,7 @@
 import AVFoundation
 
 enum SoundEffect {
-    case wake, farewell, sad, glitch, swish, angry, happy, surprised, tick, thud
+    case wake, farewell, sad, glitch, swish, angry, happy, surprised, tick, thud, clang, scrape
 }
 
 /// Tiny synthesizer: every effect is generated in code, so there are no audio assets.
@@ -79,6 +79,12 @@ final class SoundBank {
         case .thud:
             [Step(from: 140, to: 45, duration: 0.2, gain: 0.8),
              Step(from: 0, to: 0, duration: 0.07, wave: .noise, gain: 0.35)]
+        case .clang:   // short, dull metal
+            [Step(from: 0, to: 0, duration: 0.025, wave: .noise, gain: 0.5),
+             Step(from: 330, to: 300, duration: 0.16, gain: 0.4),
+             Step(from: 690, to: 660, duration: 0.12, gain: 0.18)]
+        case .scrape:  // metal dragged over stone
+            [Step(from: 0, to: 0, duration: 1.0, wave: .noise, gain: 0.3, crush: true)]
         }
     }
 
