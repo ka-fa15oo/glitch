@@ -23,6 +23,14 @@ enum Prefs {
     }
 
     static var d: UserDefaults { .standard }
+
+    static let customizeKeys = [character, scale, hue, liveliness, gravity, hideInFullscreen]
+    static var soundKeys: [String] { [volume, muted] + SoundGroup.allCases.map(\.key) }
+
+    /// Back to the registered defaults: removing a key makes UserDefaults fall back to them.
+    static func reset(_ keys: [String]) {
+        keys.forEach(d.removeObject(forKey:))
+    }
 }
 
 /// Sound tab toggles: each switches a group of effects on or off.

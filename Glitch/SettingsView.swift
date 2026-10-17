@@ -5,15 +5,28 @@ struct SettingsView: View {
     @AppStorage(Prefs.settingsTab) private var tab = "customize"
 
     var body: some View {
-        TabView(selection: $tab) {
-            CustomizeTab()
-                .tabItem { Label("Customize", systemImage: "paintbrush") }
-                .tag("customize")
-            SoundTab()
-                .tabItem { Label("Sound", systemImage: "speaker.wave.2") }
-                .tag("sound")
+        // a plain segmented switcher instead of TabView, whose tabs end up in the title bar on recent macOS
+        VStack(spacing: 0) {
+            Picker("Section", selection: $tab) {
+                Label("Customize", systemImage: "paintbrush").tag("customize")
+                Label("Sound", systemImage: "speaker.wave.2").tag("sound")
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .padding(.top, 14)
+
+            if tab == "sound" { SoundTab() } else { CustomizeTab() }
+
+            HStack {
+                Spacer()
+                Button("Reset to Defaults") {
+                    Prefs.reset(tab == "sound" ? Prefs.soundKeys : Prefs.customizeKeys)
+                }
+            }
+            .padding([.horizontal, .bottom], 20)
         }
-        .frame(width: 620, height: 580)
+        .frame(width: 620, height: 640)
     }
 }
 

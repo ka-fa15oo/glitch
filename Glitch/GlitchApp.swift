@@ -25,7 +25,7 @@ struct GlitchApp: App {
             Button("Quit") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
         }
-        Window("Glitch", id: "settings") {
+        Window("Glitch Settings", id: "settings") {
             SettingsView()
         }
         .windowResizability(.contentSize)
@@ -425,7 +425,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Dev helper: draws the Customize or Sound tab to a PNG without clicking through the menu bar.
     private func renderSettings(to path: String, tab: String) {
-        let window = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 620, height: 580),
+        let window = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 620, height: 640),
                               styleMask: [.titled], backing: .buffered, defer: false)
         if tab == "welcome" {
             window.contentView = NSHostingView(rootView: WelcomeView())
