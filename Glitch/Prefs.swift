@@ -53,7 +53,7 @@ enum SoundGroup: String, CaseIterable {
     static func allows(_ effect: SoundEffect) -> Bool { Prefs.d.bool(forKey: SoundGroup(effect).key) }
 }
 
-/// The characters on the picker. Only Glitch is drawn; the others wait for the user's design approval.
+/// The characters on the picker. Locked slots wait for the user's design approval.
 struct CharacterInfo: Identifiable {
     let id: String
     let name: String
@@ -62,7 +62,7 @@ struct CharacterInfo: Identifiable {
 
     static let all = [
         CharacterInfo(id: "glitch", name: "Glitch", theme: "Cursed digital knight", available: true),
-        CharacterInfo(id: "slot2", name: "Character 2", theme: "Coming soon", available: false),
+        CharacterInfo(id: Mage.id, name: "Character 2", theme: "Cosmic mage", available: true),
         CharacterInfo(id: "slot3", name: "Character 3", theme: "Coming soon", available: false),
     ]
 }
