@@ -22,6 +22,7 @@ final class SessionStore {
     private var sessions: [String: SessionStatus] = [:]
     private var lastEvent: [String: Date] = [:]
     private var reminded: Set<String> = []
+    private var waitingTool: [String: (name: String?, useID: String?)] = [:]
 
     private static let deadAfter: TimeInterval = 24 * 60 * 60
     private static let remindAfter: TimeInterval = 5 * 60
@@ -30,17 +31,24 @@ final class SessionStore {
         let id = event.sessionID
         lastEvent[id] = event.date
         switch event.kind {
-        case .permission: set(id, event.cwd, .permission, event.date)
-        case .question: set(id, event.cwd, .question, event.date)
+        case .permission:
+            set(id, event.cwd, .permission, event.date)
+            waitingTool[id] = (event.tool, event.toolUseID)
+        case .question:
+            set(id, event.cwd, .question, event.date)
+            waitingTool[id] = (event.tool ?? "AskUserQuestion", event.toolUseID)
+        case .toolDone:
+            // parallel tool calls: only the call that was waiting answers the wait
+            guard let status = sessions[id], status.state == .permission || status.state == .question,
+                  isWaitingTool(id, event) else { break }
+            clear(id)
         case .error: set(id, event.cwd, .error, event.date)
         case .finished: set(id, event.cwd, .finished, event.date)
         case .userActed:
-            sessions[id] = nil
-            reminded.remove(id)
+            clear(id)
         case .ended:
-            sessions[id] = nil
+            clear(id)
             lastEvent[id] = nil
-            reminded.remove(id)
         }
         onChange?()
     }
@@ -81,6 +89,18 @@ final class SessionStore {
         }.map(\.id)
         reminded.formUnion(due)
         return due
+    }
+
+    private func clear(_ id: String) {
+        sessions[id] = nil
+        reminded.remove(id)
+        waitingTool[id] = nil
+    }
+
+    private func isWaitingTool(_ id: String, _ event: SentinelEvent) -> Bool {
+        guard let waiting = waitingTool[id] else { return false }
+        if let a = waiting.useID, let b = event.toolUseID { return a == b }
+        return waiting.name != nil && waiting.name == event.tool
     }
 
     private func set(_ id: String, _ cwd: String, _ state: SessionState, _ date: Date) {

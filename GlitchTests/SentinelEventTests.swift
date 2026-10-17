@@ -24,6 +24,16 @@ struct SentinelEventTests {
     @Test func parsesEnded() { #expect(parsed("ended")?.kind == .ended) }
 
     @Test func ignoresOrdinaryToolFailure() { #expect(parsed("toolFailure") == nil) }
+    @Test func ignoresIdlePrompt() { #expect(parsed("idlePrompt") == nil) }   // Stop already says "finished"
+
+    @Test func toolDoneCarriesToolAndID() {
+        let data = Data(#"{"session_id":"a","cwd":"/p","hook_event_name":"PostToolUse","tool_name":"Bash","tool_use_id":"t1"}"#.utf8)
+        let e = SentinelEvent.parse(data, date: date)
+        #expect(e?.kind == .toolDone)
+        #expect(e?.tool == "Bash")
+        #expect(e?.toolUseID == "t1")
+    }
+
     @Test func ignoresUnknownEvent() { #expect(parsed("unknown") == nil) }
     @Test func ignoresMalformedJSON() { #expect(SentinelEvent.parse(Data("{\"hook_event".utf8), date: date) == nil) }
     @Test func ignoresMissingSessionID() {

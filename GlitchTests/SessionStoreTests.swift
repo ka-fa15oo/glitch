@@ -30,6 +30,41 @@ struct SessionStoreTests {
         #expect(store.visible.isEmpty)
     }
 
+    private func tool(_ id: String, _ kind: SentinelEvent.Kind, _ name: String?, _ useID: String? = nil, at t: TimeInterval = 0) -> SentinelEvent {
+        var event = Fixture.event(id, kind, at: t)
+        event.tool = name
+        event.toolUseID = useID
+        return event
+    }
+
+    @Test func permissionSurvivesOtherToolCompletion() {
+        store.apply(tool("A", .permission, "Bash", "t1"))
+        store.apply(tool("A", .toolDone, "Read", "t2", at: 1))
+        #expect(store.visible.map(\.state) == [.permission])
+    }
+
+    @Test func permissionClearedBySameToolCompletion() {
+        store.apply(tool("A", .permission, "Bash", "t1"))
+        store.apply(tool("A", .toolDone, "Bash", "t1", at: 1))
+        #expect(store.visible.isEmpty)
+    }
+
+    @Test func permissionWithoutUseIDMatchesByToolName() {
+        store.apply(tool("A", .permission, "Bash"))
+        store.apply(tool("A", .toolDone, "Read", "t2", at: 1))
+        #expect(store.visible.count == 1)
+        store.apply(tool("A", .toolDone, "Bash", "t3", at: 2))
+        #expect(store.visible.isEmpty)
+    }
+
+    @Test func questionClearedOnlyByItsAnswer() {
+        store.apply(tool("A", .question, "AskUserQuestion", "q1"))
+        store.apply(tool("A", .toolDone, "Bash", "t2", at: 1))
+        #expect(store.visible.count == 1)
+        store.apply(tool("A", .toolDone, "AskUserQuestion", "q1", at: 2))
+        #expect(store.visible.isEmpty)
+    }
+
     @Test func markOpenedClearsGold() {
         store.apply(e("A", .finished))
         store.markOpened("A")

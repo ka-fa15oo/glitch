@@ -2,12 +2,15 @@ import Foundation
 
 /// One Claude Code hook payload, reduced to what the sentinel cares about.
 struct SentinelEvent: Equatable, Sendable {
-    enum Kind: Equatable, Sendable { case permission, question, finished, error, userActed, ended }
+    /// `toolDone` = a tool call finished; it only answers a wait if it is the tool that was waiting.
+    enum Kind: Equatable, Sendable { case permission, question, finished, error, userActed, toolDone, ended }
 
     let sessionID: String
     let cwd: String
     let kind: Kind
     let date: Date
+    var tool: String?
+    var toolUseID: String?
 
     /// nil = ignore (unknown event, ordinary tool error, malformed payload).
     static func parse(_ data: Data, date: Date) -> SentinelEvent? {
@@ -16,7 +19,8 @@ struct SentinelEvent: Equatable, Sendable {
               let id = object["session_id"] as? String, !id.isEmpty else { return nil }
         let tool = object["tool_name"] as? String
         guard let kind = kind(event: event, tool: tool, notification: object["notification_type"] as? String) else { return nil }
-        return SentinelEvent(sessionID: id, cwd: object["cwd"] as? String ?? "", kind: kind, date: date)
+        return SentinelEvent(sessionID: id, cwd: object["cwd"] as? String ?? "", kind: kind, date: date,
+                             tool: tool, toolUseID: object["tool_use_id"] as? String)
     }
 
     /// Hook event → sentinel state. See "Bulgular (Task 0)" in the spec for where this mapping comes from.
@@ -32,8 +36,10 @@ struct SentinelEvent: Equatable, Sendable {
             case "elicitation_dialog": return .question
             default: return nil                                // idle reminders etc.
             }
-        case "UserPromptSubmit", "PostToolUse", "PermissionDenied":
-            return .userActed                                  // the user answered, approved, denied or wrote again
+        case "UserPromptSubmit", "PermissionDenied":
+            return .userActed                                  // the user wrote again or denied
+        case "PostToolUse":
+            return .toolDone                                   // approved tool ran / question answered (if it's that tool)
         case "PostToolUseFailure":
             return nil                                         // an ordinary tool error is not a session error
         case "Stop":
