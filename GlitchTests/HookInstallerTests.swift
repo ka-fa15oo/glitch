@@ -68,4 +68,40 @@ struct HookInstallerTests {
         #expect(HookInstaller.isInstalled(settings: try HookInstaller.merged(settings: userSettings, scriptPath: script),
                                           scriptPath: script))
     }
+
+    /// Claude Code runs the command through a shell, so the space in "Application Support" must not split it.
+    @Test func hookCommandRunsThroughShellWithSpacesInPath() throws {
+        let home = Fixture.tempDir().appendingPathComponent("with space")
+        let path = home.appendingPathComponent("Library/Application Support/Glitch/glitch-hook.sh").path
+        try FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent,
+                                                withIntermediateDirectories: true)
+        try FileManager.default.copyItem(atPath: Fixture.repo.appendingPathComponent("Tools/glitch-hook.sh").path, toPath: path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)
+        let command = try #require(groups(try HookInstaller.merged(settings: nil, scriptPath: path), "Stop")
+            .first.flatMap { ($0["hooks"] as? [[String: Any]])?.first?["command"] as? String })
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", command]
+        process.environment = ["HOME": home.path, "PATH": "/usr/bin:/bin"]
+        let stdin = Pipe()
+        process.standardInput = stdin
+        process.standardError = Pipe()
+        try process.run()
+        try stdin.fileHandleForWriting.close()
+        process.waitUntilExit()
+
+        #expect(process.terminationStatus == 0)
+        let events = home.appendingPathComponent("Library/Application Support/Glitch/events").path
+        #expect(try FileManager.default.contentsOfDirectory(atPath: events).filter { $0.hasSuffix(".json") }.count == 1)
+    }
+
+    /// The first release wrote the bare path; uninstall must clean it up and a reinstall must replace it.
+    @Test func legacyUnquotedEntryIsReplacedAndRemoved() throws {
+        let legacy = Data(#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"\#(script)"}]}]}}"#.utf8)
+        #expect(groups(try HookInstaller.removed(settings: legacy, scriptPath: script), "Stop").isEmpty)
+        let stop = groups(try HookInstaller.merged(settings: legacy, scriptPath: script), "Stop")
+        #expect(stop.count == 1)
+        #expect((stop[0]["hooks"] as? [[String: Any]])?.first?["command"] as? String != script)
+    }
 }
