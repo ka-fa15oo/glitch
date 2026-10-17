@@ -79,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var clickMonitor: Any?
     private var mouseDownAt: (time: Double, origin: CGPoint, mouse: CGPoint)?
     private var hoverTimer: Timer?
+    private var sentinel: SentinelController?
     private var textTimer: Timer?
     private var typingFrame: CGRect?
     private var screenLocked = false
@@ -146,6 +147,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return screen.visibleFrame.minY - CGFloat(RobotView.padBottom) * RobotView.scale
         }
         wakeUp()
+        let hub = SentinelHub.shared
+        sentinel = SentinelController(brain: brain, store: hub.store, feed: hub.feed, projects: hub.projects)
+        sentinel?.start()
         // common modes: the goodbye plays while a pending terminate has the run loop in the modal mode
         brainTimer?.invalidate()
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
@@ -251,7 +255,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else if let down = mouseDownAt {
                 let moved = hypot(mouse.x - down.mouse.x, mouse.y - down.mouse.y)
                 if moved < 3, now - down.time < 0.5 {
-                    if event.clickCount >= 2 { brain.revealQuitButton() } else { brain.clicked() }
+                    if event.clickCount >= 2 {
+                        brain.revealQuitButton()
+                    } else if !(sentinel?.handleClick() ?? false) {
+                        brain.clicked()
+                    }
                 }
             }
             mouseDownAt = nil
@@ -266,9 +274,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let window else { return }
         if mouseDownAt != nil {            // keep holding a drag even when the cursor leaves the body
             window.ignoresMouseEvents = false
+            sentinel?.hover(false, near: window.frame)
             return
         }
-        window.ignoresMouseEvents = !isOverCharacter(window.mouseLocationOutsideOfEventStream, in: window)
+        let over = isOverCharacter(window.mouseLocationOutsideOfEventStream, in: window)
+        window.ignoresMouseEvents = !over
+        sentinel?.hover(over, near: window.frame)
     }
 
     /// `point` is in window coordinates (origin bottom-left).

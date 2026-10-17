@@ -25,7 +25,10 @@ targets:
     # logic tests: the sentinel sources are compiled straight into the bundle, so no app (no knight, no sounds) starts
     type: bundle.unit-test
     platform: macOS
-    sources: [GlitchTests, Glitch/Sentinel]
+    sources:
+      - GlitchTests
+      - path: Glitch/Sentinel
+        excludes: [SentinelController.swift]   # needs Brain, which only the app has
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

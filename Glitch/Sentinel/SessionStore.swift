@@ -18,6 +18,8 @@ struct SessionStatus: Equatable, Sendable {
 final class SessionStore {
     var isIncluded: (String) -> Bool = { _ in true }       // cwd -> project filter
     var onChange: (() -> Void)?
+    /// Every applied event, after the state change (the controller plays one-shot moves from it).
+    var onEvent: ((SentinelEvent) -> Void)?
 
     private var sessions: [String: SessionStatus] = [:]
     private var lastEvent: [String: Date] = [:]
@@ -51,6 +53,7 @@ final class SessionStore {
             lastEvent[id] = nil
         }
         onChange?()
+        onEvent?(event)
     }
 
     /// The user opened this session from Glitch: a finished or failed one no longer needs a look.
