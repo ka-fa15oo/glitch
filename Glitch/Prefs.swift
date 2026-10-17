@@ -11,11 +11,12 @@ enum Prefs {
     static let volume = "volume"
     static let muted = "muted"
     static let settingsTab = "settingsTab"
+    static let welcomed = "welcomed"
 
     static func register() {
         var defaults: [String: Any] = [
             character: "glitch", scale: 2.0, hue: 0.0, liveliness: 1, gravity: true,
-            hideInFullscreen: true, volume: 0.5, muted: false, settingsTab: "customize",
+            hideInFullscreen: true, volume: 0.5, muted: false, settingsTab: "customize", welcomed: false,
         ]
         for group in SoundGroup.allCases { defaults[group.key] = true }
         UserDefaults.standard.register(defaults: defaults)

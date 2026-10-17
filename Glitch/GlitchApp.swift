@@ -30,6 +30,11 @@ struct GlitchApp: App {
         }
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(.suppressed)
+        Window("Welcome to Glitch", id: "welcome") {
+            WelcomeView()
+        }
+        .windowResizability(.contentSize)
+        .defaultLaunchBehavior(Prefs.d.bool(forKey: Prefs.welcomed) ? .suppressed : .presented)
     }
 }
 
@@ -229,8 +234,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return event
         }
 
-        // keep out of the text box the user is typing in (needs the Accessibility permission)
-        TextFieldGuard.askForPermission()
+        // keep out of the text box the user is typing in (needs Accessibility, asked for on the welcome screen)
         brain.keepOut = { [weak self] in self?.typingFrame }
         // the whole silhouette (sword tip and cape too), on the side the knight is facing
         brain.bodyFrame = { [weak self] origin in
@@ -421,10 +425,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Dev helper: draws the Customize or Sound tab to a PNG without clicking through the menu bar.
     private func renderSettings(to path: String, tab: String) {
-        Prefs.d.set(tab, forKey: Prefs.settingsTab)
         let window = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 620, height: 580),
                               styleMask: [.titled], backing: .buffered, defer: false)
-        window.contentView = NSHostingView(rootView: SettingsView())
+        if tab == "welcome" {
+            window.contentView = NSHostingView(rootView: WelcomeView())
+            window.setContentSize(window.contentView!.fittingSize)
+        } else {
+            Prefs.d.set(tab, forKey: Prefs.settingsTab)
+            window.contentView = NSHostingView(rootView: SettingsView())
+        }
+        window.appearance = NSAppearance(named: .aqua)   // the cached image has no window background, so dark text reads
         window.orderFrontRegardless()
         self.window = window
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
