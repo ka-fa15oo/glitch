@@ -10,7 +10,7 @@ struct SettingsView: View {
                 .tabItem { Label("Customize", systemImage: "paintbrush") }
                 .tag("customize")
             SoundTab()
-                .tabItem { Label("Ses", systemImage: "speaker.wave.2") }
+                .tabItem { Label("Sound", systemImage: "speaker.wave.2") }
                 .tag("sound")
         }
         .frame(width: 620, height: 580)
@@ -34,10 +34,10 @@ private struct CustomizeTab: View {
                 .frame(width: 230, height: 255)
                 .clipped()
                 .background(.black.opacity(0.85), in: .rect(cornerRadius: 10))
-                .accessibilityLabel("Karakter önizlemesi")
+                .accessibilityLabel("Character preview")
 
             Form {
-                Section("Karakter") {
+                Section("Character") {
                     ForEach(CharacterInfo.all) { info in
                         Button {
                             character = info.id
@@ -57,26 +57,26 @@ private struct CustomizeTab: View {
                         .disabled(!info.available)
                     }
                 }
-                Section("Görünüm") {
-                    Picker("Renk", selection: $hue) {
+                Section("Appearance") {
+                    Picker("Color", selection: $hue) {
                         ForEach(ColorTheme.all) { Text($0.name).tag($0.hue) }
                     }
-                    Picker("Boyut", selection: $scale) {
-                        Text("Küçük").tag(1.0)
-                        Text("Orta").tag(2.0)
-                        Text("Büyük").tag(3.0)
+                    Picker("Size", selection: $scale) {
+                        Text("Small").tag(1.0)
+                        Text("Medium").tag(2.0)
+                        Text("Large").tag(3.0)
                     }
                     .pickerStyle(.segmented)
                 }
-                Section("Davranış") {
-                    Picker("Hareketlilik", selection: $liveliness) {
-                        Text("Sakin").tag(0)
+                Section("Behavior") {
+                    Picker("Activity", selection: $liveliness) {
+                        Text("Calm").tag(0)
                         Text("Normal").tag(1)
-                        Text("Hareketli").tag(2)
+                        Text("Lively").tag(2)
                     }
                     .pickerStyle(.segmented)
-                    Toggle("Yer çekimi", isOn: $gravity)
-                    Toggle("Tam ekranda gizlen", isOn: $hideInFullscreen)
+                    Toggle("Gravity", isOn: $gravity)
+                    Toggle("Hide in full screen", isOn: $hideInFullscreen)
                 }
             }
             .formStyle(.grouped)
@@ -92,8 +92,8 @@ private struct SoundTab: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Sessiz", isOn: $muted)
-                LabeledContent("Ses seviyesi") {
+                Toggle("Mute", isOn: $muted)
+                LabeledContent("Volume") {
                     HStack {
                         Image(systemName: "speaker.fill")
                         Slider(value: $volume, in: 0 ... 1)
@@ -102,7 +102,7 @@ private struct SoundTab: View {
                 }
                 .disabled(muted)
             }
-            Section("Olay sesleri") {
+            Section("Event sounds") {
                 ForEach(SoundGroup.allCases, id: \.self) { group in
                     SoundGroupToggle(group: group)
                 }

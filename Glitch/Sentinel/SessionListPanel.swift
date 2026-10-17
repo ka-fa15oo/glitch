@@ -56,7 +56,7 @@ private struct SessionListView: View {
                 }
             }
             if let first = rows.first {
-                Text("— tıkla: \(titles(first.id)) açılır")
+                Text("— click to open \(titles(first.id))")
                     .foregroundStyle(.white.opacity(0.4))
                     .padding(.top, 2)
             }
@@ -82,17 +82,17 @@ private struct SessionListView: View {
 
     private func label(_ state: SessionState) -> String {
         switch state {
-        case .permission: "izin bekliyor"
-        case .question: "cevap bekliyor"
-        case .finished: "bitti"
-        case .error: "hata"
+        case .permission: "needs permission"
+        case .question: "needs an answer"
+        case .finished: "done"
+        case .error: "error"
         }
     }
 
     private func age(_ since: Date) -> String {
         let minutes = Int(now.timeIntervalSince(since) / 60)
-        if minutes < 1 { return "az önce" }
-        if minutes < 60 { return "\(minutes) dk" }
-        return "\(minutes / 60) sa"
+        if minutes < 1 { return "just now" }
+        if minutes < 60 { return "\(minutes) min" }
+        return "\(minutes / 60) h"
     }
 }

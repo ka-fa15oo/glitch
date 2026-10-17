@@ -74,7 +74,7 @@ xcodebuild -scheme Glitch -destination 'platform=macOS' test
 ## First run
 
 1. Open Glitch. He drops in from the top of the screen.
-2. Menu bar icon → **Claude Code nöbetçisi: Kur…** to install the sentinel hook.
+2. Menu bar icon → **Claude Code sentinel: Install…** to install the sentinel hook.
 3. Optional: grant **Accessibility** (System Settings → Privacy & Security) so he can step out of the way of text boxes.
 
 > The menus are in Turkish for now.

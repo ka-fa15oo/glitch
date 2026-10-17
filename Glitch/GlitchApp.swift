@@ -18,7 +18,7 @@ struct GlitchApp: App {
             AccessibilityStatus()
             SentinelMenu()
             Divider()
-            Button("Çıkış") { NSApp.terminate(nil) }
+            Button("Quit") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
         }
         Window("Glitch", id: "settings") {
@@ -36,7 +36,7 @@ private struct SettingsButtons: View {
     var body: some View {
         Button("Customize…") { open("customize") }
             .keyboardShortcut(",")
-        Button("Ses…") { open("sound") }
+        Button("Sound…") { open("sound") }
     }
 
     private func open(_ name: String) {
@@ -50,7 +50,7 @@ private struct MuteToggle: View {
     @AppStorage(Prefs.muted) private var muted = false
 
     var body: some View {
-        Button(muted ? "Sesi aç" : "Sessize al") { muted.toggle() }
+        Button(muted ? "Unmute" : "Mute") { muted.toggle() }
     }
 }
 
@@ -58,9 +58,9 @@ private struct MuteToggle: View {
 private struct AccessibilityStatus: View {
     var body: some View {
         if AXIsProcessTrusted() {
-            Text("✓ Yazı kutusu koruması açık")
+            Text("✓ Text field guard on")
         } else {
-            Button("⚠︎ Yazı kutusu koruması kapalı: izin ver…") {
+            Button("⚠︎ Text field guard off: allow…") {
                 TextFieldGuard.askForPermission()
                 if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                     NSWorkspace.shared.open(url)
@@ -74,7 +74,7 @@ private struct LoginToggle: View {
     @State private var enabled = SMAppService.mainApp.status == .enabled
 
     var body: some View {
-        Button(enabled ? "✓ Girişte başlat" : "Girişte başlat") {
+        Button(enabled ? "✓ Open at login" : "Open at login") {
             do {
                 if enabled { try SMAppService.mainApp.unregister() } else { try SMAppService.mainApp.register() }
             } catch {

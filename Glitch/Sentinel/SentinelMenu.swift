@@ -9,13 +9,13 @@ struct SentinelMenu: View {
     var body: some View {
         let _ = revision
         if HookSetup.isInstalled {
-            Button("Claude Code nöbetçisi: Kaldır") { HookSetup.uninstall(); revision += 1 }
+            Button("Claude Code sentinel: Remove") { HookSetup.uninstall(); revision += 1 }
         } else {
-            Button("Claude Code nöbetçisi: Kur…") { HookSetup.askAndInstall(); revision += 1 }
+            Button("Claude Code sentinel: Install…") { HookSetup.askAndInstall(); revision += 1 }
         }
         let projects = SentinelHub.shared.projects
         if !projects.known.isEmpty {
-            Menu("İzlenen projeler") {
+            Menu("Watched projects") {
                 ForEach(projects.known, id: \.self) { cwd in
                     Button((projects.isIncluded(cwd) ? "✓ " : "    ") + projects.name(for: cwd)) {
                         projects.setIncluded(cwd, !projects.isIncluded(cwd))
@@ -40,10 +40,10 @@ enum HookSetup {
 
     static func askAndInstall() {
         let alert = NSAlert()
-        alert.messageText = "Claude Code nöbetçisi kurulsun mu?"
+        alert.messageText = "Install the Claude Code sentinel?"
         alert.informativeText = HookInstaller.preview(scriptPath: HookInstaller.scriptPath)
-        alert.addButton(withTitle: "Kur")
-        alert.addButton(withTitle: "Vazgeç")
+        alert.addButton(withTitle: "Install")
+        alert.addButton(withTitle: "Cancel")
         NSApp.activate()
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         do {
@@ -52,9 +52,9 @@ enum HookSetup {
             let updated = try HookInstaller.merged(settings: current, scriptPath: HookInstaller.scriptPath)
             try write(updated, backingUp: current)
         } catch HookInstaller.Failure.invalidJSON {
-            show("settings.json okunamadı, hiçbir şey değiştirilmedi.")
+            show("Couldn't read settings.json. Nothing was changed.")
         } catch {
-            show("Kurulamadı: \(error.localizedDescription)")
+            show("Couldn't install: \(error.localizedDescription)")
         }
     }
 
@@ -63,9 +63,9 @@ enum HookSetup {
         do {
             try write(try HookInstaller.removed(settings: current, scriptPath: HookInstaller.scriptPath), backingUp: current)
         } catch HookInstaller.Failure.invalidJSON {
-            show("settings.json okunamadı, hiçbir şey değiştirilmedi.")
+            show("Couldn't read settings.json. Nothing was changed.")
         } catch {
-            show("Kaldırılamadı: \(error.localizedDescription)")
+            show("Couldn't remove: \(error.localizedDescription)")
         }
     }
 

@@ -32,11 +32,11 @@ enum SoundGroup: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .arrival: "Uyanış ve veda"
-        case .reactions: "Tepkiler (tıklama, sürükleme)"
-        case .movement: "Adımlar ve düşüş"
+        case .arrival: "Wake and goodbye"
+        case .reactions: "Reactions (click, drag)"
+        case .movement: "Steps and falls"
         case .glitch: "Glitch"
-        case .sword: "Kılıç"
+        case .sword: "Sword"
         }
     }
 
@@ -61,9 +61,9 @@ struct CharacterInfo: Identifiable {
     let available: Bool
 
     static let all = [
-        CharacterInfo(id: "glitch", name: "Glitch", theme: "Lanetli dijital şövalye", available: true),
-        CharacterInfo(id: "slot2", name: "Karakter 2", theme: "Tasarım bekliyor", available: false),
-        CharacterInfo(id: "slot3", name: "Karakter 3", theme: "Tasarım bekliyor", available: false),
+        CharacterInfo(id: "glitch", name: "Glitch", theme: "Cursed digital knight", available: true),
+        CharacterInfo(id: "slot2", name: "Character 2", theme: "Coming soon", available: false),
+        CharacterInfo(id: "slot3", name: "Character 3", theme: "Coming soon", available: false),
     ]
 }
 
@@ -74,9 +74,9 @@ struct ColorTheme: Identifiable {
     var id: Double { hue }
 
     static let all = [
-        ColorTheme(name: "Kızıl", hue: 0),
-        ColorTheme(name: "Kehribar", hue: 35),
-        ColorTheme(name: "Zümrüt", hue: 140),
-        ColorTheme(name: "Buz", hue: 200),
+        ColorTheme(name: "Crimson", hue: 0),
+        ColorTheme(name: "Amber", hue: 35),
+        ColorTheme(name: "Emerald", hue: 140),
+        ColorTheme(name: "Ice", hue: 200),
     ]
 }

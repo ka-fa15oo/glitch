@@ -195,7 +195,7 @@ final class Brain {
     /// Sprite-space point the user grabbed (set on mouse down), so the body hangs from the cursor.
     var grabPoint = CGPoint(x: 39, y: 20)
     var gravityEnabled = true
-    /// Customize › Hareketlilik: stretches (calm) or shortens (lively) the gaps between idle moves.
+    /// Customize › Activity: stretches (calm) or shortens (lively) the gaps between idle moves.
     var restScale = 1.0
     var onSound: ((SoundEffect) -> Void)?
     var mouseTarget: () -> (mouse: CGPoint, center: CGPoint)? = { nil }

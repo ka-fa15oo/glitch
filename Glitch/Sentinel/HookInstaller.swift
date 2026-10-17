@@ -67,12 +67,12 @@ enum HookInstaller {
     /// What the consent dialog lists.
     static func preview(scriptPath: String) -> String {
         """
-        ~/.claude/settings.json içine şu olaylar için bir komut eklenecek:
+        A command will be added to ~/.claude/settings.json for these events:
         \(events.map { event in event.matcher.map { "\(event.name) (\($0))" } ?? event.name }.joined(separator: ", "))
 
-        Komut: \(command(scriptPath))
-        Her olayı Glitch'e bir dosya olarak bırakır, hiçbir şeyi engellemez, internete bir şey göndermez.
-        Mevcut ayarların ve hook'ların değişmez; önce settings.json.glitch-backup yedeği alınır.
+        Command: \(command(scriptPath))
+        It hands each event to Glitch as a file. It never blocks anything and sends nothing to the internet.
+        Your existing settings and hooks stay as they are; a settings.json.glitch-backup copy is made first.
         """
     }
 
