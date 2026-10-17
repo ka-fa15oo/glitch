@@ -184,7 +184,6 @@ final class Brain {
         var fling = 0.0         // -1...1 how hard it is being dragged sideways (sprite space)
         var carried = false
         var showQuit = false    // double-click reveals a close button
-        var bloodAge = -1.0     // seconds since the blood ribbon was summoned; < 0 = none
         var cocoonAge = -1.0    // seconds since blood started swirling round the whole body; < 0 = none
         var cocoonHold = false  // true: the blood stays (goodbye) instead of withering
         var reveal = 1.0        // 0...1 how visible the character is (fades in/out inside the blood)
@@ -224,7 +223,6 @@ final class Brain {
     private var eyePrev: EyeKind = .open
     private var eyeFade = 1.0
     private var nearPos = Skeleton.relaxedNear, farPos = Skeleton.handFar
-    private var bloodStart = -100.0
     private var drop: Drop = .none
     private var lastUpdate = CACurrentMediaTime()
     private var nextBlink = 3.0
@@ -494,10 +492,6 @@ final class Brain {
         } else if sentinelHold != .none {
             applySentinel(now, to: &pose)
         }
-        if let a = action, a.kind == .swing, now - a.start >= 0.6, bloodStart < a.start { bloodStart = a.start + 0.6 }
-        if let a = action, a.kind == .finished, now - a.start >= 0.25, bloodStart < a.start { bloodStart = a.start + 0.25 }
-        let age = now - bloodStart
-        pose.bloodAge = (age >= 0 && age < 1.2) ? age : -1
         if let a = appearStart {
             let appeared = now - a
             if appeared < 2.5 { pose.cocoonAge = appeared; pose.reveal = ease((appeared - 0.55) / 0.9) } else { appearStart = nil }

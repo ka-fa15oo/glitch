@@ -123,79 +123,6 @@ struct RobotView: View {
         return (chosen, CGPoint(x: s.x + dx, y: s.y + dy))
     }
 
-    // MARK: - blood ribbon ("Mea Culpa" style): grows from the sword, curls over the head, then withers
-
-    private struct Ribbon {
-        let points: [CGPoint]
-        let width: Double
-        let delay: Double
-    }
-
-    private static let ribbons: [Ribbon] = [
-        Ribbon(points: [(8, 72), (-1, 60), (-3, 46), (1, 34), (9, 25), (19, 21), (27, 26), (25, 34)].map { CGPoint(x: $0.0, y: $0.1) },
-               width: 6.5, delay: 0),
-        Ribbon(points: [(30, 7), (41, 1), (53, 6), (60, 17), (58, 30)].map { CGPoint(x: $0.0, y: $0.1) },
-               width: 2.6, delay: 0.1),
-        Ribbon(points: [(2, 66), (-8, 52), (-8, 36), (-2, 24)].map { CGPoint(x: $0.0, y: $0.1) },
-               width: 3.6, delay: 0.05),
-    ]
-
-    private static func spline(_ p: [CGPoint], _ u: Double) -> CGPoint {
-        let n = p.count - 1
-        let f = min(Double(n) - 0.0001, max(0, u * Double(n)))
-        let i = Int(f), t = f - Double(i)
-        let p0 = p[max(0, i - 1)], p1 = p[i], p2 = p[i + 1], p3 = p[min(n, i + 2)]
-        func cr(_ a: Double, _ b: Double, _ c: Double, _ d: Double) -> Double {
-            0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t)
-        }
-        return CGPoint(x: cr(p0.x, p1.x, p2.x, p3.x), y: cr(p0.y, p1.y, p2.y, p3.y))
-    }
-
-    private static func drawBlood(_ ctx: inout GraphicsContext, unit: CGFloat, age: Double, t: Double) {
-        func ease(_ x: Double) -> Double { let c = max(0, min(1, x)); return c * c * (3 - 2 * c) }
-        var body = Path(), mid = Path(), core = Path()
-        func pixel(_ path: inout Path, _ x: Double, _ y: Double) {
-            path.addRect(CGRect(x: floor(x) * unit, y: floor(y) * unit, width: unit, height: unit))
-        }
-        for (index, ribbon) in ribbons.enumerated() {
-            let grow = ease((age - ribbon.delay) / 0.45)
-            let wither = ease((age - 0.72 - ribbon.delay * 0.5) / 0.42)
-            if grow <= 0 || wither >= 1 { continue }
-            let samples = 44
-            for i in 0 ... samples {
-                let u = Double(i) / Double(samples)
-                if u > grow || u < wither * grow { continue }
-                var p = spline(ribbon.points, u)
-                let wave = sin(t * 3.2 + u * 9 + Double(index)) * 0.9 * u
-                p.x += wave
-                p.y += cos(t * 2.4 + u * 7) * 0.5 * u
-                let taper = min(1, (grow - u) * 7 + 0.25) * min(1, (u - wither * grow) * 9 + 0.25)
-                let w = ribbon.width * (0.35 + 0.65 * sin(.pi * min(1, u * 1.05))) * taper * (1 - 0.35 * wither)
-                let r = max(0.5, w / 2)
-                var dy = -Int(r.rounded(.up))
-                while dy <= Int(r.rounded(.up)) {
-                    var dx = -Int(r.rounded(.up))
-                    while dx <= Int(r.rounded(.up)) {
-                        let d = hypot(Double(dx), Double(dy))
-                        if d <= r {
-                            pixel(&body, p.x + Double(dx), p.y + Double(dy))
-                            if d <= r * 0.62 { pixel(&mid, p.x + Double(dx) - 0.5, p.y + Double(dy) - 0.5) }
-                            if d <= r * 0.3 { pixel(&core, p.x + Double(dx) - 1, p.y + Double(dy) - 1) }
-                        }
-                        dx += 1
-                    }
-                    dy += 1
-                }
-            }
-        }
-        let fade = 1 - ease((age - 1.0) / 0.2)
-        ctx.opacity = 0.95 * fade
-        ctx.fill(body, with: .color(Color(red: 0.42, green: 0.05, blue: 0.07)))
-        ctx.fill(mid, with: .color(Color(red: 0.69, green: 0.1, blue: 0.1)))
-        ctx.fill(core, with: .color(Color(red: 0.93, green: 0.22, blue: 0.18)))
-        ctx.opacity = 1
-    }
-
     // MARK: - sparks
 
     private static let goldLight = Color(red: 0.96, green: 0.80, blue: 0.36)
@@ -278,7 +205,6 @@ struct RobotView: View {
 
         if shadow {
             draw(Sprite.shadow, outer, unit: unit, size: size)
-            if pose.bloodAge >= 0 { drawBlood(&outer, unit: unit, age: pose.bloodAge, t: t) }
         }
 
         let turned = outer
