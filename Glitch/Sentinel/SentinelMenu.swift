@@ -3,11 +3,15 @@ import SwiftUI
 
 /// Menu bar entries for the Claude Code sentinel: install/remove the hook (with consent) and the project filter.
 struct SentinelMenu: View {
+    /// The menu bar menu is only rebuilt when its state changes, so every action bumps this.
+    @State private var revision = 0
+
     var body: some View {
+        let _ = revision
         if HookSetup.isInstalled {
-            Button("Claude Code nöbetçisi: Kaldır") { HookSetup.uninstall() }
+            Button("Claude Code nöbetçisi: Kaldır") { HookSetup.uninstall(); revision += 1 }
         } else {
-            Button("Claude Code nöbetçisi: Kur…") { HookSetup.askAndInstall() }
+            Button("Claude Code nöbetçisi: Kur…") { HookSetup.askAndInstall(); revision += 1 }
         }
         let projects = SentinelHub.shared.projects
         if !projects.known.isEmpty {
@@ -16,6 +20,7 @@ struct SentinelMenu: View {
                     Button((projects.isIncluded(cwd) ? "✓ " : "    ") + projects.name(for: cwd)) {
                         projects.setIncluded(cwd, !projects.isIncluded(cwd))
                         SentinelHub.shared.store.refilter()
+                        revision += 1
                     }
                 }
             }
