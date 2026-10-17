@@ -500,7 +500,40 @@ struct RobotView: View {
         arm(upperImage: set.armNearUpper, fore: set.armNearFore, shoulder: shoulderNear, restShoulder: rig.shoulderNear,
             elbow0: rig.elbowNear, hand0: rig.handNear, target: nearTarget, outward: 1)
 
-    }
+        // sparks hovering by the near shoulder: crimson = waiting for the user, gold = finished
+        let sparks = pose.redSparks + pose.goldSparks
+        if sparks > 0 {
+            var red = Path(), redCore = Path(), gold = Path(), goldCore = Path(), glow = Path(), glowGold = Path()
+            let slots = [CGPoint(x: 57, y: 37), CGPoint(x: 62, y: 43), CGPoint(x: 53, y: 31), CGPoint(x: 64, y: 35), CGPoint(x: 57, y: 47), CGPoint(x: 66, y: 41)]
+            for i in 0 ..< min(sparks, slots.count) {
+                let bob = sin(t * 1.7 + Double(i) * 1.9) * 1.6, drift = sin(t * 1.1 + Double(i) * 2.7) * 1.0
+                let x = (slots[i].x + drift + bx).rounded(), y = (slots[i].y + bob + by + lift).rounded()
+                let isRed = i < pose.redSparks
+                func px(_ p: inout Path, _ dx: Double, _ dy: Double) {
+                    p.addRect(CGRect(x: (x + dx) * unit, y: (y + dy) * unit, width: unit, height: unit))
+                }
+                // a small plus-shaped glow with a bright core
+                // a 2 px core, a plus of arms round it, and a faint halo one pixel further out
+                for (dx, dy) in [(-1.0, 0.0), (-1, 1), (2, 0), (2, 1), (0, -1), (1, -1), (0, 2), (1, 2)] {
+                    if isRed { px(&red, dx, dy) } else { px(&gold, dx, dy) }
+                }
+                for (dx, dy) in [(-2.0, 0.0), (-2, 1), (3, 0), (3, 1), (0, -2), (1, -2), (0, 3), (1, 3)] {
+                    if isRed { px(&glow, dx, dy) } else { px(&glowGold, dx, dy) }
+                }
+                for (dx, dy) in [(0.0, 0.0), (1, 0), (0, 1), (1, 1)] {
+                    if isRed { px(&redCore, dx, dy) } else { px(&goldCore, dx, dy) }
+                }
+            }
+            ctx.opacity = 0.28
+            ctx.fill(glow, with: .color(Color(red: 0.84, green: 0.16, blue: 0.14)))
+            ctx.fill(glowGold, with: .color(goldLight))
+            ctx.opacity = 0.9
+            ctx.fill(red, with: .color(Color(red: 0.62, green: 0.08, blue: 0.09)))
+            ctx.fill(gold, with: .color(goldDark))
+            ctx.opacity = 1
+            ctx.fill(redCore, with: .color(Color(red: 0.93, green: 0.22, blue: 0.18)))
+            ctx.fill(goldCore, with: .color(goldLight))
+        }
     }
 }
 

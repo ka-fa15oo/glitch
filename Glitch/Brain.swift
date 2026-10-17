@@ -176,6 +176,8 @@ final class Brain {
         var slipRot = 0.0       // and turns by this much (radians)
         var scrapeAge = -1.0    // seconds since the sword point began to scrape the ground; < 0 = none
         var sparkFlight = -1.0  // 0...1 the last gold spark flying from the sword point to the shoulder; < 0 = none
+        var redSparks = 0       // shoulder sparks: waiting for the user
+        var goldSparks = 0      // shoulder sparks: finished sessions
         var splashAge = -1.0    // seconds since the landing splash began; < 0 = none
         var wind = 0.0          // 0...1 gale blowing the cape to one side (arrival and goodbye)
         var squash = 0.0        // 0...1 impact squash
@@ -212,6 +214,7 @@ final class Brain {
     private struct Landing { var impact: Double?; var vy = 0.0; var x: Double }
     var sentinelHold = SentinelHold.none      // set by the sentinel (Brain+Sentinel API below)
     private var holdSince = 0.0
+    private var remindStart = -10.0
     private var finishedStage = 0       // which sounds of the finished move have played
     private var flareUntil = 0.0
     private(set) var redSparks = 0, goldSparks = 0
@@ -336,6 +339,8 @@ final class Brain {
         case .barrier:
             Self.applyBarrier(k: k, to: &pose)
             if now < flareUntil { pose.eyes = .wide }      // the eyes flare once as the sword comes up
+            let r = now - remindStart                      // reminder: one short shake of the sword
+            if r >= 0, r < 0.5 { pose.swordRot += 0.07 * sin(r * 55) * (1 - r / 0.5); pose.grip.x += 0.8 * sin(r * 70) * (1 - r / 0.5) }
         case .attend:
             Self.applyAttend(k: k, to: &pose)
             let lift = (now - holdSince) / 0.4                  // a small lift of the head as it snaps to attention
@@ -509,6 +514,11 @@ final class Brain {
         }
         // a gale while the blood is around (arrival: first 2 s; goodbye: as long as it stays)
         pose.wind = pose.cocoonAge >= 0 && (pose.cocoonHold || pose.cocoonAge < 2.0) ? 1 : 0
+        // shoulder sparks; the one the finished move is still flying in is not counted yet
+        pose.redSparks = redSparks
+        var arriving = 0
+        if let a = action, a.kind == .finished, now - a.start < 2.05 { arriving = 1 }
+        pose.goldSparks = max(0, goldSparks - arriving)
         pose.view = .threeQuarter
 
         pose.showQuit = now < quitUntil
@@ -953,6 +963,13 @@ extension Brain {
     /// A session stopped with an error: the sword slips out of the hand and is caught again.
     func playError(at now: Double = CACurrentMediaTime()) {
         start(.fumble, at: now, silent: true)
+    }
+
+    /// A permission has waited too long: one short shake of the barrier sword and a clang.
+    func remindPermission(at now: Double = CACurrentMediaTime()) {
+        guard sentinelHold == .barrier else { return }
+        remindStart = now
+        onSound?(.clang)
     }
 
     func setSentinel(hold: SentinelHold, redSparks: Int, goldSparks: Int, at now: Double = CACurrentMediaTime()) {

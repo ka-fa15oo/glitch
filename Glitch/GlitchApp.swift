@@ -375,6 +375,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "scrape": Brain.applyFinished(e: 1.2, to: &pose)
         case "fumble": Brain.applyFumble(e: 0.45, to: &pose)
         case "catch": Brain.applyFumble(e: 0.64, to: &pose)
+        case "sparks": pose.redSparks = 2; pose.goldSparks = 1
         case "wind": pose.wind = 1; pose.eyes = .open
         case "fling": pose.carried = true; pose.carriedAmount = 1; pose.fling = 0.9; pose.hang = 0.12; pose.kick = 0.3; pose.kickPhase = 1; pose.eyes = .angry
         case "fall": pose.fallAmount = 1; pose.falling = true; pose.eyes = .wide; pose.kick = 0.5; pose.kickPhase = 1
