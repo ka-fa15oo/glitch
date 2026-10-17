@@ -25,7 +25,7 @@ If you run several Claude Code sessions at once, it's easy to miss the one waiti
 - **Hover** over Glitch to see the list (project · session · state · how long).
 - **Click** to open the most urgent session. Desktop sessions open directly; terminal sessions bring your terminal forward.
 - **Calm by design.** He only reacts when something actually happens. If a permission request goes unanswered for 5 minutes he reminds you once, then waits again.
-- **Choose which projects count** under *İzlenen projeler* (watched projects) in the menu.
+- **Choose which projects count** under *Watched projects* in the menu.
 
 <p align="center"><img src="docs/images/finished-error-sparks.png" width="560" alt="Finished move, error move and shoulder sparks"></p>
 
@@ -76,8 +76,6 @@ xcodebuild -scheme Glitch -destination 'platform=macOS' test
 1. Open Glitch. He drops in from the top of the screen.
 2. Menu bar icon → **Claude Code sentinel: Install…** to install the sentinel hook.
 3. Optional: grant **Accessibility** (System Settings → Privacy & Security) so he can step out of the way of text boxes.
-
-> The menus are in Turkish for now.
 
 ## License
 
