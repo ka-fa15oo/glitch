@@ -34,6 +34,17 @@ struct SentinelEventTests {
         #expect(e?.toolUseID == "t1")
     }
 
+    @Test func realToolDoneIsToolDone() {
+        let e = parsed("toolDone")
+        #expect(e?.kind == .toolDone)
+        #expect(e?.tool == "Bash")
+        #expect(e?.toolUseID != nil)
+    }
+
+    @Test func ignoresSessionStart() { #expect(parsed("sessionStart") == nil) }
+
+    @Test func desktopPromptCarriesTitle() { #expect(parsed("userActed")?.title == "Main") }
+
     @Test func ignoresUnknownEvent() { #expect(parsed("unknown") == nil) }
     @Test func ignoresMalformedJSON() { #expect(SentinelEvent.parse(Data("{\"hook_event".utf8), date: date) == nil) }
     @Test func ignoresMissingSessionID() {

@@ -11,6 +11,8 @@ struct SentinelEvent: Equatable, Sendable {
     let date: Date
     var tool: String?
     var toolUseID: String?
+    /// Desktop sessions send their title with each prompt (`session_title`).
+    var title: String?
 
     /// nil = ignore (unknown event, ordinary tool error, malformed payload).
     static func parse(_ data: Data, date: Date) -> SentinelEvent? {
@@ -20,7 +22,8 @@ struct SentinelEvent: Equatable, Sendable {
         let tool = object["tool_name"] as? String
         guard let kind = kind(event: event, tool: tool, notification: object["notification_type"] as? String) else { return nil }
         return SentinelEvent(sessionID: id, cwd: object["cwd"] as? String ?? "", kind: kind, date: date,
-                             tool: tool, toolUseID: object["tool_use_id"] as? String)
+                             tool: tool, toolUseID: object["tool_use_id"] as? String,
+                             title: object["session_title"] as? String)
     }
 
     /// Hook event → sentinel state. See "Bulgular (Task 0)" in the spec for where this mapping comes from.

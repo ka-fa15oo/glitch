@@ -86,3 +86,18 @@ Aşağıdakiler test edilmedi. Uygulamaya başlamadan önce doğrulanmalı. Biri
 - Kıvılcımın tam piksel tasarımı, boyutu ve yeri. Taslaktaki hâli başlangıç noktasıdır, snapshot ile onaylanır.
 - Seslerin nasıl üretileceği. Mevcut `SoundBank` sesleri koddan üretiyor, aynı yol izlenebilir.
 - Menü ve filtre arayüzünün ayrıntıları (sade ve karakterin karanlık stiline uygun olmak koşuluyla).
+
+## Bulgular (Task 0)
+
+2026-10-17, Claude Code 2.1.299. Geçici bir kayıt hook'u kullanıcının onayıyla `~/.claude/settings.json`'a eklendi, terminalde `claude -p` ile test oturumları çalıştırıldı, sonra dosya yedekten geri yüklendi (birebir aynı) ve kayıtlar silindi. Örnek veriler kişisel içerikten temizlenip `GlitchTests/Fixtures/` altına kondu.
+
+1. **Masaüstü oturumları genel hook'ları tetikliyor.** Zaten açık olan masaüstü oturumları bile ayar değişikliğini hemen okudu, yeni oturum açmak gerekmedi. Masaüstü oturumlarının `UserPromptSubmit` olayında ayrıca `session_title` alanı var.
+2. **Olay → durum eşlemesi** (`SentinelEvent.parse`):
+   - İzin bekliyor: `PermissionRequest` (`tool_name` var, `tool_use_id` yok). `Notification` + `notification_type: permission_prompt` de izin sayılır (-p modunda gelmedi).
+   - Cevap bekliyor: `PreToolUse` + `tool_name: AskUserQuestion`. **Gerçek veriyle doğrulanamadı** (araç -p modunda yok); belgelenen biçim varsayıldı, **Task 8'de doğrulanacak**. `Notification` + `elicitation_dialog` de soru sayılır.
+   - Kullanıcı ilgilendi: `UserPromptSubmit`, `PermissionDenied`; ve bekleyen aracın kendi `PostToolUse`'u (paralel araçlar yüzünden: önce `tool_use_id`, yoksa araç adı eşleşmeli).
+   - İş bitti: `Stop`. `Notification` + `idle_prompt` yok sayılır (aynı bitiş iki kez sayılmasın).
+   - Hata: `StopFailure` (örnek: `error: model_not_found`). Sıradan araç hataları ayrı bir olaydır (`PostToolUseFailure`) ve yok sayılır.
+   - Oturum kapandı: `SessionEnd`. `SessionStart` yok sayılır.
+3. **Oturumu açmak:** Claude uygulaması her masaüstü oturumu için `~/Library/Application Support/Claude/claude-code-sessions/*/*/local_<id>.json` dosyası tutuyor; içinde hook'taki oturum kimliği (`cliSessionId`), bağlantıdaki kimlik (`sessionId: local_…`) ve başlık (`title`) var. Glitch bunu **sadece okur** ve `claude://claude.ai/epitaxy/local_<id>` açar (Claude.app `claude` şemasını kayıtlı). Belgelenmemiş iç bir dosya olduğu için okuma hata toleranslıdır: dosya yoksa, alan adı değiştiyse ya da JSON bozuksa masaüstü oturumu için Claude.app, terminal oturumu için çalışan terminal öne getirilir.
+4. **Oturum adı:** Önce olaydaki `session_title`, sonra yukarıdaki dosyadaki `title`, ikisi de yoksa kimliğin ilk 6 karakteri.

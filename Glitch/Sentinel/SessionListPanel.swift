@@ -6,8 +6,9 @@ import SwiftUI
 final class SessionListPanel {
     private var panel: NSPanel?
 
-    func show(_ rows: [SessionStatus], names: @escaping (String) -> String, beside frame: CGRect) {
-        let view = SessionListView(rows: rows, names: names, now: Date())
+    func show(_ rows: [SessionStatus], names: @escaping (String) -> String, titles: @escaping (String) -> String,
+              beside frame: CGRect) {
+        let view = SessionListView(rows: rows, names: names, titles: titles, now: Date())
         let panel = self.panel ?? makePanel()
         self.panel = panel
         let host = NSHostingView(rootView: view)
@@ -39,6 +40,7 @@ final class SessionListPanel {
 private struct SessionListView: View {
     let rows: [SessionStatus]
     let names: (String) -> String
+    let titles: (String) -> String
     let now: Date
 
     private static let crimson = Color(red: 0.72, green: 0.1, blue: 0.14)
@@ -49,12 +51,12 @@ private struct SessionListView: View {
             ForEach(rows, id: \.id) { row in
                 HStack(spacing: 6) {
                     Text(mark(row.state)).foregroundStyle(color(row.state))
-                    Text("\(names(row.cwd)) · \(SessionDirectory.title(for: row.id))").foregroundStyle(.white.opacity(0.92))
+                    Text("\(names(row.cwd)) · \(titles(row.id))").foregroundStyle(.white.opacity(0.92))
                     Text("— \(label(row.state)) · \(age(row.since))").foregroundStyle(.white.opacity(0.55))
                 }
             }
             if let first = rows.first {
-                Text("— tıkla: \(SessionDirectory.title(for: first.id)) açılır")
+                Text("— tıkla: \(titles(first.id)) açılır")
                     .foregroundStyle(.white.opacity(0.4))
                     .padding(.top, 2)
             }

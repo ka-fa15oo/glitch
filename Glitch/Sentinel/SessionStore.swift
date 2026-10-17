@@ -24,6 +24,7 @@ final class SessionStore {
     private var sessions: [String: SessionStatus] = [:]
     private var lastEvent: [String: Date] = [:]
     private var reminded: Set<String> = []
+    private var titles: [String: String] = [:]
     private var waitingTool: [String: (name: String?, useID: String?)] = [:]
 
     private static let deadAfter: TimeInterval = 24 * 60 * 60
@@ -32,6 +33,7 @@ final class SessionStore {
     func apply(_ event: SentinelEvent) {
         let id = event.sessionID
         lastEvent[id] = event.date
+        if let title = event.title, !title.isEmpty { titles[id] = title }
         switch event.kind {
         case .permission:
             set(id, event.cwd, .permission, event.date)
@@ -51,6 +53,7 @@ final class SessionStore {
         case .ended:
             clear(id)
             lastEvent[id] = nil
+            titles[id] = nil
         }
         onChange?()
         onEvent?(event)
@@ -76,6 +79,9 @@ final class SessionStore {
     }
 
     func refilter() { onChange?() }
+
+    /// The title a desktop session reported, if any (terminal sessions have none).
+    func title(for id: String) -> String? { titles[id] }
 
     var visible: [SessionStatus] {
         sessions.values.filter { isIncluded($0.cwd) }.sorted { ($0.state, $0.since) < ($1.state, $1.since) }

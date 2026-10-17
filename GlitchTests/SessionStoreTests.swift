@@ -65,6 +65,15 @@ struct SessionStoreTests {
         #expect(store.visible.isEmpty)
     }
 
+    @Test func remembersDesktopTitle() {
+        var prompt = Fixture.event("A", .userActed)
+        prompt.title = "Main"
+        store.apply(prompt)
+        #expect(store.title(for: "A") == "Main")
+        store.apply(Fixture.event("A", .ended, at: 1))
+        #expect(store.title(for: "A") == nil)
+    }
+
     @Test func markOpenedClearsGold() {
         store.apply(e("A", .finished))
         store.markOpened("A")

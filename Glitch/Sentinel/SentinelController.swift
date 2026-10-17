@@ -33,7 +33,7 @@ final class SentinelController {
     /// true = the click opened the most urgent session; false = let the knight's own click behaviour run.
     func handleClick() -> Bool {
         guard let session = store.mostUrgent else { return false }
-        SessionDirectory.open(session.id)
+        SessionDirectory.open(session.id, isDesktop: store.title(for: session.id) != nil)
         store.markOpened(session.id)
         return true
     }
@@ -73,7 +73,8 @@ final class SentinelController {
     private func refreshList() {
         let rows = store.visible
         if hovering, !rows.isEmpty {
-            list.show(rows, names: { [projects] in projects.name(for: $0) }, beside: lastFrame)
+            list.show(rows, names: { [projects] in projects.name(for: $0) },
+                      titles: { [store] in store.title(for: $0) ?? SessionDirectory.title(for: $0) }, beside: lastFrame)
         } else {
             list.hide()
         }

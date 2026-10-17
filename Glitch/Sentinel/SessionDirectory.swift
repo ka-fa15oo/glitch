@@ -3,12 +3,14 @@ import AppKit
 /// Finds a Claude Code session's title and opens it.
 /// Desktop sessions: the Claude app keeps a file per session (`claude-code-sessions/*/*/local_<id>.json`) holding the
 /// hook's session id as `cliSessionId`, the `local_…` id its `claude://` link uses, and the title.
+/// That file is the Claude app's own undocumented data: it is only ever read, and anything missing, renamed or
+/// malformed just falls back (the app is brought forward, the title is the id's first 6 characters).
 /// Terminal sessions have no such file: their terminal app is brought forward instead.
 @MainActor
 enum SessionDirectory {
     struct Entry { let localID: String; let title: String }
 
-    private static let root = FileManager.default.homeDirectoryForCurrentUser
+    static var root = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/Claude/claude-code-sessions", isDirectory: true)
     private static var cache: [String: Entry] = [:]
     private static var cachedAt = Date.distantPast
@@ -23,16 +25,25 @@ enum SessionDirectory {
         entry(for: sessionID)?.title ?? String(sessionID.prefix(6))
     }
 
-    static func open(_ sessionID: String) {
+    static func localID(for sessionID: String) -> String? { entry(for: sessionID)?.localID }
+
+    /// `isDesktop`: the session reported a desktop title, so it lives in the Claude app even if its file can't be read.
+    static func open(_ sessionID: String, isDesktop: Bool) {
         if let entry = entry(for: sessionID), let url = URL(string: "claude://claude.ai/epitaxy/\(entry.localID)") {
             NSWorkspace.shared.open(url)
             return
         }
-        // a terminal `claude` session: bring the terminal forward
+        let running = NSWorkspace.shared.runningApplications
         let terminals = ["com.apple.Terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty", "dev.warp.Warp-Stable"]
-        if let app = NSWorkspace.shared.runningApplications.first(where: { terminals.contains($0.bundleIdentifier ?? "") }) {
-            app.activate()
-        }
+        let terminal = running.first { terminals.contains($0.bundleIdentifier ?? "") }
+        let claude = running.first { $0.bundleIdentifier == "com.anthropic.claudefordesktop" }
+        (isDesktop ? claude ?? terminal : terminal ?? claude)?.activate()
+    }
+
+    /// Forget what was read (tests point `root` somewhere else).
+    static func reset() {
+        cache = [:]
+        cachedAt = .distantPast
     }
 
     private static func reload() {
