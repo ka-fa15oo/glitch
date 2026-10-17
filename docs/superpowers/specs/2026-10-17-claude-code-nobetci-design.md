@@ -94,7 +94,7 @@ Aşağıdakiler test edilmedi. Uygulamaya başlamadan önce doğrulanmalı. Biri
 1. **Masaüstü oturumları genel hook'ları tetikliyor.** Zaten açık olan masaüstü oturumları bile ayar değişikliğini hemen okudu, yeni oturum açmak gerekmedi. Masaüstü oturumlarının `UserPromptSubmit` olayında ayrıca `session_title` alanı var.
 2. **Olay → durum eşlemesi** (`SentinelEvent.parse`):
    - İzin bekliyor: `PermissionRequest` (`tool_name` var, `tool_use_id` yok). `Notification` + `notification_type: permission_prompt` de izin sayılır (-p modunda gelmedi).
-   - Cevap bekliyor: `PreToolUse` + `tool_name: AskUserQuestion`. **Gerçek veriyle doğrulanamadı** (araç -p modunda yok); belgelenen biçim varsayıldı, **Task 8'de doğrulanacak**. `Notification` + `elicitation_dialog` de soru sayılır.
+   - Cevap bekliyor: `PreToolUse` + `tool_name: AskUserQuestion`. -p modunda doğrulanamadı; Task 8'de masaüstü oturumunda canlı doğrulandı (2026-10-17: karakter bekliyor pozuna geçti). `Notification` + `elicitation_dialog` de soru sayılır.
    - Kullanıcı ilgilendi: `UserPromptSubmit`, `PermissionDenied`; ve bekleyen aracın kendi `PostToolUse`'u (paralel araçlar yüzünden: önce `tool_use_id`, yoksa araç adı eşleşmeli).
    - İş bitti: `Stop`. `Notification` + `idle_prompt` yok sayılır (aynı bitiş iki kez sayılmasın).
    - Hata: `StopFailure` (örnek: `error: model_not_found`). Sıradan araç hataları ayrı bir olaydır (`PostToolUseFailure`) ve yok sayılır.
