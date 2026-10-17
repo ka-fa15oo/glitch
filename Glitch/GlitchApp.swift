@@ -61,6 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var clickMonitor: Any?
     private var mouseDownAt: (time: Double, origin: CGPoint, mouse: CGPoint)?
     private var hoverTimer: Timer?
+    private var textTimer: Timer?
+    private var typingFrame: CGRect?
     private var screenLocked = false
     private var lastWake = -100.0
     private var fullscreenHits = 0
@@ -158,6 +160,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp, .leftMouseDragged]) { [weak self] event in
             MainActor.assumeIsolated { self?.handle(event) }
             return event
+        }
+
+        // keep out of the text box the user is typing in (needs the Accessibility permission)
+        TextFieldGuard.askForPermission()
+        brain.keepOut = { [weak self] in self?.typingFrame }
+        brain.bodyFrame = { origin in
+            let scale = RobotView.scale
+            return CGRect(x: origin.x + CGFloat(RobotView.padLeft) * scale + 8, y: origin.y + CGFloat(RobotView.padBottom) * scale,
+                          width: CGFloat(Sprite.width) * scale - 16, height: CGFloat(Sprite.height) * scale)
+        }
+        textTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.typingFrame = TextFieldGuard.focusedTextFrame() }
         }
 
         // clicks only land on the character's own pixels; the empty rest of the window lets them through

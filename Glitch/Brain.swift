@@ -123,6 +123,10 @@ final class Brain {
     var setWindowOrigin: (CGPoint) -> Void = { _ in }
     var walkBounds: () -> CGRect = { .zero }
     var groundY: () -> CGFloat = { 0 }
+    /// The text box the user is typing in (screen coordinates), which the knight must not walk into.
+    var keepOut: () -> CGRect? = { nil }
+    /// Where the knight's body is on screen for a given window origin.
+    var bodyFrame: (CGPoint) -> CGRect = { CGRect(origin: $0, size: .zero) }
 
     private var action: (kind: Action, start: Double)?
     private var quitUntil = 0.0
@@ -321,11 +325,19 @@ final class Brain {
                 walkTarget = nil
                 nextWander = now + .random(in: 12 ... 35)
             } else {
-                setWindowOrigin(CGPoint(x: origin.x + dx / dist * step, y: origin.y + dy / dist * step))
-                facingRight = dx > 0
-                walkPhase += dt * 5.5
+                let next = CGPoint(x: origin.x + dx / dist * step, y: origin.y + dy / dist * step)
+                if blocked(next), !blocked(origin) {
+                    walkTarget = nil                      // the way leads into the text box: stop at its edge
+                    nextWander = now + 3
+                } else {
+                    setWindowOrigin(next)
+                    facingRight = dx > 0
+                    walkPhase += dt * 5.5
+                }
             }
         }
+        // standing in the text box someone is typing in: step out of it
+        if walkTarget == nil, !carried, !dropping, landing == nil, blocked(windowOrigin()) { stepOutOfTheWay() }
         walkAmount += ((walkTarget != nil ? 1.0 : 0.0) - walkAmount) * min(1, dt * 9)
         if walkAmount < 0.01, walkTarget == nil { walkAmount = 0 }
         pose.facingRight = facingRight
@@ -429,6 +441,28 @@ final class Brain {
         }
     }
 
+    /// True when the knight's body at `origin` would cover the text box being typed in (with a little margin).
+    private func blocked(_ origin: CGPoint) -> Bool {
+        guard let box = keepOut() else { return false }
+        return bodyFrame(origin).intersects(box.insetBy(dx: -12, dy: -12))
+    }
+
+    /// Walks to the nearer side of the text box; with no room beside it, climbs onto its top edge.
+    private func stepOutOfTheWay() {
+        guard let box = keepOut() else { return }
+        let origin = windowOrigin(), body = bodyFrame(origin), bounds = walkBounds()
+        let left = CGPoint(x: origin.x - (body.maxX - (box.minX - 16)), y: origin.y)
+        let right = CGPoint(x: origin.x + ((box.maxX + 16) - body.minX), y: origin.y)
+        let free = [left, right].filter { $0.x >= bounds.minX && $0.x <= bounds.maxX && !blocked($0) }
+        if let nearest = free.min(by: { abs($0.x - origin.x) < abs($1.x - origin.x) }) {
+            walkTarget = nearest
+        } else {
+            let ledge = CGPoint(x: origin.x, y: origin.y + ((box.maxY + 14) - body.minY))
+            if ledge.y <= bounds.maxY { walkTarget = ledge }
+        }
+        action = nil
+    }
+
     private func beginWalk(at now: Double) {
         let bounds = walkBounds()
         guard bounds.width > 10, bounds.height > 10 else { nextWander = now + 30; return }
@@ -438,7 +472,7 @@ final class Brain {
             let y = gravityEnabled
                 ? groundY()
                 : min(bounds.maxY, max(bounds.minY, origin.y + .random(in: -80 ... 80)))
-            if abs(x - origin.x) > 180 {
+            if abs(x - origin.x) > 180, !blocked(CGPoint(x: x, y: y)) {
                 walkTarget = CGPoint(x: x, y: y)
                 return
             }
