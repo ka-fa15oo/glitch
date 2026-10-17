@@ -18,6 +18,10 @@ struct GlitchApp: App {
             AccessibilityStatus()
             SentinelMenu()
             Divider()
+            Button("About Glitch") {
+                NSApp.activate()   // an accessory app's panel otherwise opens behind the frontmost app
+                NSApp.orderFrontStandardAboutPanel(nil)
+            }
             Button("Quit") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
         }
