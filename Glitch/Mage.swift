@@ -107,7 +107,13 @@ enum Mage {
         // now and then, while it floats still, it draws a constellation with the staff tip
         let calm = (1 - pose.stepAmount) * (1 - pose.carriedAmount) * (1 - pose.fallAmount)
         let sky = Constellation(t: t)
-        let staffMove = sky?.staff ?? (angle: 0, lift: 0)
+        var staffMove = sky?.staff ?? (angle: 0, lift: 0)
+        // clicked: the staff goes up and forward while the shooting star leaves its tip
+        if pose.cast >= 0 {
+            let k = ease(pose.cast / 0.3) * (1 - ease((pose.cast - 1.0) / 0.5))
+            staffMove.angle += castAngle * k
+            staffMove.lift += castLift * k
+        }
         if let sky, calm > 0.01 {
             var c = base
             c.opacity = calm
@@ -207,6 +213,87 @@ enum Mage {
             faint.fill(line, with: .color(starGlow))
             c.fill(glow, with: .color(starGlow))
             c.fill(core, with: .color(starLight))
+        }
+    }
+
+    private static let castAngle = -0.25, castLift = -9.0
+
+    /// Where the raised staff's tip is, in points from the pet window's top-left.
+    @MainActor private static func castTip(facingRight: Bool) -> CGPoint {
+        let r = CGPoint(x: Constellation.tip.x - hand.x, y: Constellation.tip.y - hand.y)
+        let x = hand.x + r.x * cos(castAngle) - r.y * sin(castAngle)
+        let y = hand.y + r.x * sin(castAngle) + r.y * cos(castAngle) + castLift
+        let px = (Double(RobotView.padLeft) + x) * RobotView.scale
+        return CGPoint(x: facingRight ? RobotView.canvasSize.width - px : px,
+                       y: (Double(RobotView.padTop) + y) * RobotView.scale)
+    }
+
+    @MainActor private static var streak: NSWindow?
+
+    /// A see-through, click-through window over the whole screen for the shooting star; it closes itself.
+    @MainActor static func shootingStar(windowOrigin: CGPoint, facingRight: Bool) {
+        let tip = castTip(facingRight: facingRight)
+        let onScreen = CGPoint(x: windowOrigin.x + tip.x, y: windowOrigin.y + RobotView.canvasSize.height - tip.y)
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(onScreen) }) ?? NSScreen.main else { return }
+        let frame = screen.frame
+        let window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.isReleasedWhenClosed = false
+        let start = CGPoint(x: onScreen.x - frame.minX, y: frame.maxY - onScreen.y)
+        window.contentView = NSHostingView(rootView: ShootingStar(start: start, facingRight: facingRight,
+                                                                  unit: RobotView.scale))
+        streak?.close()
+        streak = window
+        window.orderFrontRegardless()
+        DispatchQueue.main.asyncAfter(deadline: .now() + ShootingStar.length) {
+            window.close()
+            if streak === window { streak = nil }
+        }
+    }
+
+    /// A small star that leaves the staff tip once it is raised and streaks up and forward, trailing light.
+    struct ShootingStar: View {
+        static let delay = 0.3, flight = 1.2
+        static var length: Double { delay + flight + 0.1 }
+        let start: CGPoint          // view coordinates, y down
+        let facingRight: Bool
+        let unit: CGFloat
+        var fixedAge: Double?
+        private let began = Date.timeIntervalSinceReferenceDate
+
+        var body: some View {
+            if let fixedAge {
+                canvas(age: fixedAge)
+            } else {
+                TimelineView(.animation) { canvas(age: $0.date.timeIntervalSinceReferenceDate - began) }
+            }
+        }
+
+        private func canvas(age: Double) -> some View {
+            Canvas { c, _ in
+                let e = age - Self.delay
+                guard e >= 0, e < Self.flight else { return }
+                let dir = CGPoint(x: facingRight ? 0.94 : -0.94, y: -0.34)
+                let travel = 1100 * e * (1 - 0.25 * e)                 // eases off a little as it goes
+                var c = c
+                c.opacity = 1 - ease((e - 0.75) / 0.45)
+                for i in stride(from: 15, through: 0, by: -1) {
+                    let back = Double(i) * 5 * unit / 2
+                    let p = CGPoint(x: start.x + dir.x * (travel - back), y: start.y + dir.y * (travel - back))
+                    let size = (i < 2 ? 2 : 1) * unit
+                    let rect = CGRect(x: (p.x / unit).rounded() * unit, y: (p.y / unit).rounded() * unit,
+                                      width: size, height: size)
+                    let color = i == 0 ? Color(red: 1, green: 0.95, blue: 0.75) : (i < 5 ? starLight : starGlow)
+                    var layer = c
+                    layer.opacity *= 1 - Double(i) / 16
+                    layer.fill(Path(rect), with: .color(color))
+                }
+            }
         }
     }
 
