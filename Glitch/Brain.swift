@@ -4,7 +4,7 @@ import AppKit
 @MainActor
 final class Brain {
     enum EyeKind { case open, half, closed, wide, angry, happy }
-    enum Action { case wake, farewell, sad, surprised, angry, happy, swing, look, glitch, guard_ }
+    enum Action { case wake, farewell, sad, surprised, angry, happy, swing, look, glitch, guard_, finished }
 
     /// How the sword is held while idle; switches rarely and at random.
     enum Stance: CaseIterable { case oneHand, twoHand, planted }
@@ -59,6 +59,42 @@ final class Brain {
         pose.torsoRot += (-0.1 - pose.torsoRot) * k              // the body leans a little towards the viewer
         pose.bodyDX += 1.2 * k
         pose.shoulderLift += (0.5 - pose.shoulderLift) * k
+    }
+
+    private static func ease(_ x: Double) -> Double { let c = max(0, min(1, x)); return c * c * (3 - 2 * c) }
+
+    /// Session finished: the wrist flicks the blood off the blade (0 to 0.8 s), then the point is dragged along the
+    /// ground in a shower of gold sparks (0.8 to 1.6 s), and the sword settles (to 2.1 s). The last spark flies to the
+    /// shoulder (1.6 to 2.05 s).
+    static func applyFinished(e: Double, to pose: inout Pose) {
+        pose.nearHand = Skeleton.relaxedNear                  // one-handed: the free hand stays on the hip
+        // blade angle measured the same way as the rest angle (0.12 rad); the point's height follows from it
+        func pointY(_ r: Double) -> Double { -34.2 * sin(r) + 40.5 * cos(r) }
+        var rot = 0.0, lift = 0.0
+        var grip = CGPoint.zero
+        if e < 0.8 {
+            let cock = ease(e / 0.22), snap = ease((e - 0.22) / 0.1), back = ease((e - 0.4) / 0.4)
+            // cock the wrist back, whip the blade out level, let it swing back to rest
+            if e < 0.22 { rot = -0.6 * cock }
+            else if e < 0.32 { rot = -0.6 + 0.9 * snap }
+            else { rot = 0.3 * (1 - back) + 0.1 * sin((e - 0.32) * 30) * (1 - back) }
+            grip = CGPoint(x: -3 * rot, y: -2 * snap * (1 - back) + min(0, 94 - 58 - pointY(rot + 0.12)))   // point stays off the ground
+            lift = 1.4 * snap * (1 - back)
+            pose.swordRot = rot
+            pose.torsoRot = -0.05 * snap * (1 - back)
+        } else {
+            // drag the point along the ground: sweep the blade, lowering or raising the hand so the point stays down
+            let sweep = ease((e - 0.8) / 0.8), settle = ease((e - 1.6) / 0.5)
+            let r = (0.5 + (-0.2 - 0.5) * sweep) * (1 - settle) + 0.12 * settle     // total angle
+            grip = CGPoint(x: 0, y: 94 - 58 - pointY(r))
+            pose.swordRot = r - 0.12
+            pose.torsoRot = -0.07 * sweep * (1 - settle)
+            lift = 0.8 * sweep * (1 - settle)
+            if e < 1.9 { pose.scrapeAge = e - 0.8 }
+            if e >= 1.6, e < 2.05 { pose.sparkFlight = (e - 1.6) / 0.45 }
+        }
+        pose.grip = grip
+        pose.shoulderLift = lift
     }
 
     /// `k` 0...1 is how far into the guard it is.
@@ -123,6 +159,8 @@ final class Brain {
         var fallAmount = 0.0
         var crouch = 0.0        // 0...1 knees bent (landing)
         var kneel = 0.0         // 0...1 down on one knee (goodbye)
+        var scrapeAge = -1.0    // seconds since the sword point began to scrape the ground; < 0 = none
+        var sparkFlight = -1.0  // 0...1 the last gold spark flying from the sword point to the shoulder; < 0 = none
         var splashAge = -1.0    // seconds since the landing splash began; < 0 = none
         var wind = 0.0          // 0...1 gale blowing the cape to one side (arrival and goodbye)
         var squash = 0.0        // 0...1 impact squash
@@ -159,6 +197,7 @@ final class Brain {
     private struct Landing { var impact: Double?; var vy = 0.0; var x: Double }
     var sentinelHold = SentinelHold.none      // set by the sentinel (Brain+Sentinel API below)
     private var holdSince = 0.0
+    private var finishedStage = 0       // which sounds of the finished move have played
     private var flareUntil = 0.0
     private(set) var redSparks = 0, goldSparks = 0
     private var landing: Landing?        // arrival: drops from the top of the screen in a hero landing
@@ -214,6 +253,7 @@ final class Brain {
         case .look: 2.2
         case .glitch: 0.4
         case .guard_: 6.6
+        case .finished: 2.1
         }
     }
 
@@ -229,12 +269,14 @@ final class Brain {
         case .look: nil
         case .glitch: .glitch
         case .guard_: nil
+        case .finished: nil      // its own sounds play at the flick and the scrape
         }
     }
 
     func start(_ kind: Action, at now: Double = CACurrentMediaTime(), silent: Bool = false) {
         action = (kind, now)
         if kind == .wake, !beginLanding() { appearStart = now; action = (.wake, now + 2.4) }   // no room to fall: arrive inside the blood
+        if kind == .finished { finishedStage = 0 }
         if kind == .guard_ { guardKind = Guard.allCases.randomElement()! }
         walkTarget = nil
         if !silent, let effect = sound(for: kind) { onSound?(effect) }
@@ -432,6 +474,7 @@ final class Brain {
             applySentinel(now, to: &pose)
         }
         if let a = action, a.kind == .swing, now - a.start >= 0.6, bloodStart < a.start { bloodStart = a.start + 0.6 }
+        if let a = action, a.kind == .finished, now - a.start >= 0.25, bloodStart < a.start { bloodStart = a.start + 0.25 }
         let age = now - bloodStart
         pose.bloodAge = (age >= 0 && age < 1.2) ? age : -1
         if let a = appearStart {
@@ -860,6 +903,10 @@ final class Brain {
             pose.eyeDX = steps[min(steps.count - 1, Int(e / 0.55))]
             pose.headRot += 0.07 * sin(e * 3.5)
             pose.bodyDX = 0.6 * sin(e * 3.5)
+        case .finished:
+            Self.applyFinished(e: e, to: &pose)
+            if e > 0.22, finishedStage < 1 { finishedStage = 1; onSound?(.swish) }
+            if e > 0.8, finishedStage < 2 { finishedStage = 2; onSound?(.scrape) }
         case .guard_:
             let k = ease(e / 0.5) * (1 - ease((e - 6.0) / 0.6))
             Self.applyGuard(guardKind, k: k, to: &pose)
@@ -877,6 +924,11 @@ final class Brain {
 extension Brain {
     /// barrier = a permission is waiting, attend = Claude asked a question.
     enum SentinelHold: Equatable { case none, barrier, attend }
+
+    /// A session finished: flick the blood off, scrape the point along the ground, one gold spark settles on the shoulder.
+    func playFinished(at now: Double = CACurrentMediaTime()) {
+        start(.finished, at: now, silent: true)
+    }
 
     func setSentinel(hold: SentinelHold, redSparks: Int, goldSparks: Int, at now: Double = CACurrentMediaTime()) {
         self.redSparks = redSparks

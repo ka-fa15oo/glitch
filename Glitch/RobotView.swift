@@ -196,6 +196,47 @@ struct RobotView: View {
         ctx.opacity = 1
     }
 
+    // MARK: - sparks
+
+    private static let goldLight = Color(red: 0.96, green: 0.80, blue: 0.36)
+    private static let goldDark = Color(red: 0.78, green: 0.55, blue: 0.16)
+
+    /// Sparks thrown off the sword point while it scrapes the ground, then one rising to the shoulder.
+    private static func drawSparks(_ ctx: GraphicsContext, unit: CGFloat, tip: CGPoint, pose: Brain.Pose) {
+        var light = Path(), dark = Path()
+        func pixel(_ path: inout Path, _ x: Double, _ y: Double) {
+            path.addRect(CGRect(x: floor(x) * unit, y: floor(y) * unit, width: unit, height: unit))
+        }
+        if pose.scrapeAge >= 0 {
+            var rng = SplitMix(seed: 0x5A9C)
+            func random() -> Double { Double(rng.next() % 10_000) / 10_000 }
+            let rate = 70.0, life = 0.55
+            for k in 0 ..< 90 {
+                let born = Double(k) / rate * 0.9                      // streams out over the first second
+                let vx = (random() * 2 - 1) * 45 - 14, l = life * (0.6 + 0.4 * random())
+                let vy = -(30 + 80 * random()) - (k % 6 == 0 ? 70 : 0)         // a few leap higher
+                let a = pose.scrapeAge - born
+                if a < 0 || a > l { continue }
+                let x = tip.x + vx * a, y = min(94.5, tip.y + vy * a + 0.5 * 260 * a * a)
+                let fade = 1 - a / l
+                if fade > 0.7 {                                      // just born: 2 px, bright
+                    pixel(&light, x, y); pixel(&light, x + 1, y); pixel(&light, x, y + 1); pixel(&dark, x + 1, y + 1)
+                } else if fade > 0.4 { pixel(&light, x, y); pixel(&dark, x + 1, y + 1) }
+                else if fade > 0.1 { pixel(&dark, x, y) }
+            }
+        }
+        if pose.sparkFlight >= 0 {
+            let p = pose.sparkFlight, e = p * p * (3 - 2 * p)
+            let goal = CGPoint(x: 56, y: 31)
+            let x = tip.x + (goal.x - tip.x) * e
+            let y = tip.y + (goal.y - tip.y) * e - 10 * sin(.pi * p)
+            pixel(&light, x, y); pixel(&light, x + 1, y); pixel(&light, x, y + 1); pixel(&dark, x + 1, y + 1)
+            pixel(&dark, x - 2 * (goal.x - tip.x) * 0.02, y + 2)   // a short tail
+        }
+        ctx.fill(light, with: .color(goldLight))
+        ctx.fill(dark, with: .color(goldDark))
+    }
+
     private static func drawCharacter(
         _ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose
     ) {
@@ -443,6 +484,14 @@ struct RobotView: View {
         draw(Sprite.sword, ctx, unit: unit, size: size,
              translate: CGPoint(x: swordGrip.x - ref.spriteGrip.x, y: swordGrip.y - ref.spriteGrip.y),
              angle: swordRot, pivot: ref.spriteGrip)
+
+        // gold sparks where the point scrapes the ground, and the last one flying to the shoulder
+        if pose.scrapeAge >= 0 || pose.sparkFlight >= 0 {
+            let off = CGPoint(x: 5 - ref.spriteGrip.x, y: 95 - ref.spriteGrip.y)     // blade point relative to the hilt
+            let c = cos(swordRot), s = sin(swordRot)
+            let tip = CGPoint(x: swordGrip.x + off.x * c - off.y * s, y: swordGrip.y + off.x * s + off.y * c)
+            drawSparks(ctx, unit: unit, tip: tip, pose: pose)
+        }
 
         arm(upperImage: set.armNearUpper, fore: set.armNearFore, shoulder: shoulderNear, restShoulder: rig.shoulderNear,
             elbow0: rig.elbowNear, hand0: rig.handNear, target: nearTarget, outward: 1)

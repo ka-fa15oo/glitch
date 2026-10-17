@@ -369,6 +369,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "goodbye": pose.kneel = 1; pose.nearHand = nil; pose.grip = CGPoint(x: -7, y: -27); pose.swordRot = -0.82; pose.torsoRot = -0.08; pose.headDY = 2.4; pose.headRot = 0.1; pose.cocoonAge = 1.0; pose.cocoonHold = true; pose.reveal = 0.55
         case "barrier": Brain.applyBarrier(k: 1, to: &pose); pose.farWeight = 1; pose.nearWeight = 0
         case "attend": Brain.applyAttend(k: 1, to: &pose); pose.farWeight = 1; pose.nearWeight = 0
+        case "flick": Brain.applyFinished(e: 0.3, to: &pose); pose.bloodAge = 0.4
+        case "cock": Brain.applyFinished(e: 0.2, to: &pose)
+        case "settle": Brain.applyFinished(e: 1.85, to: &pose)
+        case "scrape": Brain.applyFinished(e: 1.2, to: &pose)
         case "wind": pose.wind = 1; pose.eyes = .open
         case "fling": pose.carried = true; pose.carriedAmount = 1; pose.fling = 0.9; pose.hang = 0.12; pose.kick = 0.3; pose.kickPhase = 1; pose.eyes = .angry
         case "fall": pose.fallAmount = 1; pose.falling = true; pose.eyes = .wide; pose.kick = 0.5; pose.kickPhase = 1
