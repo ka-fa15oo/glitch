@@ -168,6 +168,7 @@ struct RobotView: View {
     private static func drawCharacter(
         _ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose
     ) {
+        if Mage.isSelected { return Mage.draw(&outer, unit: unit, size: size, t: t, pose: pose) }
         if pose.cocoonAge >= 0, pose.cocoonHold {
             // goodbye: a blood storm whirls round the kneeling knight and takes it away
             BloodStorm.draw(&outer, unit: unit, age: pose.cocoonAge, t: t, side: .behind)

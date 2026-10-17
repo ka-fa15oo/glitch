@@ -484,6 +484,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             pose.nearHand = CGPoint(x: 60, y: 34)
         case "stagger": pose.bodyDX = 2; pose.torsoRot = 0.12; pose.swordRot = 0.5; pose.stepAmount = 0.5
             pose.stepPhase = 1; pose.shoulderLift = 1.5; pose.eyes = .wide
+        case let m where m.hasPrefix("stardust"): pose.dust = Double(m.dropFirst(8)) ?? 0
+        case let m where m.hasPrefix("cast"): pose.cast = Double(m.dropFirst(4)) ?? 0
         case "dust": pose.eyes = .half; pose.nearHand = CGPoint(x: 52, y: 66); pose.headDY = 0.6
         case "giveup": pose.carried = true; pose.hang = 0.04; pose.eyes = .half; pose.headDY = 2; pose.headRot = 0.12
             pose.kick = 0.02; pose.grip = CGPoint(x: 0, y: 2); pose.bodyDY = 2.5
@@ -519,8 +521,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 pose.stepAmount = 1; pose.stepPhase = phase; pose.facingRight = false
             }
         }
-        let view = RobotView(fixedTime: time, fixedPose: pose)
-            .background(Color(red: 0.79, green: 0.81, blue: 0.85))
+        let view = mood.hasPrefix("streak")
+            ? AnyView(Mage.ShootingStar(start: CGPoint(x: 560, y: 260), facingRight: false, unit: 2,
+                                        fixedAge: Double(mood.dropFirst(6)) ?? 0.5)
+                .frame(width: 600, height: 300).background(Color(red: 0.11, green: 0.11, blue: 0.13)))
+            : AnyView(RobotView(fixedTime: time, fixedPose: pose)
+                .background(Color(red: 0.79, green: 0.81, blue: 0.85)))
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2
         guard let image = renderer.nsImage,
