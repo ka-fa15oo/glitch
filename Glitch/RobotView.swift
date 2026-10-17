@@ -446,6 +446,8 @@ struct RobotView: View {
 
         arm(upperImage: set.armNearUpper, fore: set.armNearFore, shoulder: shoulderNear, restShoulder: rig.shoulderNear,
             elbow0: rig.elbowNear, hand0: rig.handNear, target: nearTarget, outward: 1)
+
+    }
     }
 }
 

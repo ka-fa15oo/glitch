@@ -48,6 +48,19 @@ final class Brain {
         pose.crouch = 0.08 * k
     }
 
+    /// Waiting for an answer: the knight turns its head and eyes towards the viewer, the sword rests low in the hand
+    /// nearest the viewer and the other hand hangs free. Calm, nothing moves. `k` 0...1.
+    static func applyAttend(k: Double, to pose: inout Pose) {
+        pose.nearHand = nil                                   // the near hand keeps the hilt
+        pose.farHand = lerp(Skeleton.handFar, CGPoint(x: 31, y: 60), k)   // the far hand drops to the hip
+        pose.headRot += 0.2 * k
+        pose.headDY -= 1.0 * k
+        pose.eyeDX = Int((2 * k).rounded())
+        pose.torsoRot += (-0.1 - pose.torsoRot) * k              // the body leans a little towards the viewer
+        pose.bodyDX += 1.2 * k
+        pose.shoulderLift += (0.5 - pose.shoulderLift) * k
+    }
+
     /// `k` 0...1 is how far into the guard it is.
     static func applyGuard(_ guardKind: Guard, k: Double, to pose: inout Pose) {
         let goal: (grip: CGPoint, rot: Double, torso: Double, lift: Double)
@@ -264,7 +277,10 @@ final class Brain {
         case .barrier:
             Self.applyBarrier(k: k, to: &pose)
             if now < flareUntil { pose.eyes = .wide }      // the eyes flare once as the sword comes up
-        case .attend: break
+        case .attend:
+            Self.applyAttend(k: k, to: &pose)
+            let lift = (now - holdSince) / 0.4                  // a small lift of the head as it snaps to attention
+            if lift < 1 { pose.headDY -= 1.4 * sin(.pi * lift) }
         }
     }
 
