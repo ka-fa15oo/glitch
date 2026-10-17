@@ -21,8 +21,40 @@ enum Mage {
 
     static func draw(_ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose) {
         var layer = outer
-        layer.opacity = max(0, min(1, pose.reveal))
+        layer.opacity = max(0, min(1, pose.reveal * dustReveal(pose.dust)))
         layer.drawLayer { inner in drawBody(inner, unit: unit, size: size, t: t, pose: pose) }
+        if pose.dust >= 0 { drawDust(outer, unit: unit, e: pose.dust) }
+    }
+
+    private static func ease(_ x: Double) -> Double { let c = max(0, min(1, x)); return c * c * (3 - 2 * c) }
+
+    /// Teleport: gone by 0.6 s, the window jumps at 0.7 s, back in full by 1.6 s.
+    private static func dustReveal(_ e: Double) -> Double {
+        guard e >= 0 else { return 1 }
+        return e < 0.7 ? 1 - ease(e / 0.6) : ease((e - 1.0) / 0.6)
+    }
+
+    /// The body breaks into star dust that drifts up and out, then the same motes fall back together.
+    private static func drawDust(_ c: GraphicsContext, unit: CGFloat, e: Double) {
+        let palette: [Color] = [starLight, starGlow, Color(red: 0.75, green: 0.38, blue: 0.62),
+                                Color(red: 0.94, green: 0.85, blue: 0.56)]
+        var paths = Array(repeating: Path(), count: palette.count)
+        var rng = SplitMix(seed: 0x51A2)
+        func random() -> Double { Double(rng.next() % 10_000) / 10_000 }
+        let out = e < 0.7
+        // how far each mote is from home (0 = in place) and how bright it is
+        let away = out ? ease(e / 0.75) : 1 - ease((e - 0.7) / 0.85)
+        let alpha = out ? 1 - ease((e - 0.2) / 0.5) : ease((e - 0.7) / 0.3) * (1 - ease((e - 1.4) / 0.25))
+        for i in 0 ..< 46 {
+            let home = CGPoint(x: 28 + random() * 26, y: 6 + random() * 80)
+            let a = random() * 2 * .pi, dist = 10 + random() * 18
+            let x = (home.x + cos(a) * dist * away).rounded()
+            let y = (home.y + sin(a) * dist * away - 10 * away).rounded()
+            paths[i % palette.count].addRect(CGRect(x: x * unit, y: y * unit, width: unit, height: unit))
+        }
+        var c = c
+        c.opacity = alpha
+        for (path, color) in zip(paths, palette) { c.fill(path, with: .color(color)) }
     }
 
     private static func drawBody(_ base: GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose) {

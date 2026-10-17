@@ -187,6 +187,7 @@ final class Brain {
         var cocoonAge = -1.0    // seconds since blood started swirling round the whole body; < 0 = none
         var cocoonHold = false  // true: the blood stays (goodbye) instead of withering
         var reveal = 1.0        // 0...1 how visible the character is (fades in/out inside the blood)
+        var dust = -1.0         // mage teleport: seconds since it scattered into star dust; < 0 = none
         var hang = 0.0          // swing angle while carried (radians)
         var hangPivot = CGPoint(x: 39, y: 20)   // sprite point under the cursor
     }
@@ -248,6 +249,9 @@ final class Brain {
     private var gaveUp = false
     private var feared = false
     private var walkTarget: CGPoint?
+    /// The mage sometimes stops partway through a walk, scatters into star dust and gathers again at the walk's end.
+    private var teleportAt: Double?
+    private var teleport: (start: Double, to: CGPoint, moved: Bool)?
     private var walkPhase = 0.0
     private var walkAmount = 0.0
     private var facingRight = false
@@ -416,10 +420,16 @@ final class Brain {
 
         let dropping: Bool
         if case .none = drop { dropping = false } else { dropping = true }
-        if !dropping, landing == nil { schedule(now) }
+        if !dropping, landing == nil, teleport == nil { schedule(now) }
         stepFall(dt: dt, now: now)
         stepLanding(dt: dt, now: now)
 
+        if walkTarget == nil { teleportAt = nil }
+        if let at = teleportAt, now >= at, let target = walkTarget {
+            teleport = (now, target, false)
+            walkTarget = nil
+            teleportAt = nil
+        }
         // wandering
         if let target = walkTarget {
             let origin = windowOrigin()
@@ -514,6 +524,16 @@ final class Brain {
         var arriving = 0
         if let a = action, a.kind == .finished, now - a.start < 2.05 { arriving = 1 }
         pose.goldSparks = max(0, goldSparks - arriving)
+        if let tp = teleport {
+            let e = now - tp.start
+            if carried || e > 1.7 {
+                teleport = nil
+                nextWander = now + .random(in: 12 ... 35) * restScale
+            } else {
+                if e >= 0.7, !tp.moved { setWindowOrigin(tp.to); teleport?.moved = true }
+                pose.dust = e
+            }
+        }
         pose.view = .threeQuarter
 
         pose.showQuit = now < quitUntil
@@ -585,6 +605,7 @@ final class Brain {
                 : min(bounds.maxY, max(bounds.minY, origin.y + .random(in: -80 ... 80)))
             if abs(x - origin.x) > 180, !blocked(CGPoint(x: x, y: y)) {
                 walkTarget = CGPoint(x: x, y: y)
+                if Mage.isSelected, Double.random(in: 0 ... 1) < 0.4 { teleportAt = now + .random(in: 0.8 ... 2.5) }
                 return
             }
         }

@@ -474,6 +474,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             pose.nearHand = CGPoint(x: 60, y: 34)
         case "stagger": pose.bodyDX = 2; pose.torsoRot = 0.12; pose.swordRot = 0.5; pose.stepAmount = 0.5
             pose.stepPhase = 1; pose.shoulderLift = 1.5; pose.eyes = .wide
+        case let m where m.hasPrefix("stardust"): pose.dust = Double(m.dropFirst(8)) ?? 0
         case "dust": pose.eyes = .half; pose.nearHand = CGPoint(x: 52, y: 66); pose.headDY = 0.6
         case "giveup": pose.carried = true; pose.hang = 0.04; pose.eyes = .half; pose.headDY = 2; pose.headRot = 0.12
             pose.kick = 0.02; pose.grip = CGPoint(x: 0, y: 2); pose.bodyDY = 2.5
