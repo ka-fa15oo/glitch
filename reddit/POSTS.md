@@ -1,73 +1,79 @@
-# Glitch – Reddit paketi
+# Glitch – Reddit paketi (nöbetçi odaklı)
 
-Görseller (hepsi bu klasörde):
-- `glitch-demo.gif` – yürüme, nefes, bakış, mutlu, el sallama, kılıç kaldırma/vurma, glitch, üzgün (21 kare)
-- `glitch-sheet.png` – 8 poz tek görselde (r/PixelArt ve eleştiri postları için)
-- `glitch-still.png` – tek poz (thumbnail)
+**Durum: hiçbir şey paylaşılmadı. Repo özel, uygulama henüz herkese açık değil.** Tüm postlar taslak; atmadan önce kullanıcının onayı ve her subreddit'in canlı kuralları şart (Reddit'e erişemedim, kurallar doğrulanmadı).
 
-> Dikkat: Reddit'e erişemedim, kuralları canlı doğrulayamadım. Atmadan önce her subreddit'in **Rules** sekmesini oku.
-> Uygulama henüz herkese açık dağıtılmıyor (repo/web sitesi/App Store yok); bu yüzden "app tanıtımı" değil **geri bildirim** postu olarak yazdım.
-> Karakter artık robot değil, "karanlık gotik şövalye" — postlarda öyle anlatılıyor.
+## Görseller
+- Şimdilik kullanılabilir duran görüntüler: `../docs/images/` (idle, permission, question, finished-error-sparks, customize).
+- **Eski:** `glitch-demo.gif`, `glitch-sheet.png`, `glitch-still.png` eski görünümden, postlarda KULLANMA.
+- **Gerekli:** gerçek ekran kaydı (kullanıcı çekecek, QuickTime ya da Cmd+Shift+5): 2-3 Claude oturumu açık, biri izin isterken Glitch nöbete geçer (kızıl kıvılcım), iş bitince altın kıvılcım. 10-20 sn yeterli. Kayıt gelince GIF'e çevirip kısaltacağım (ffmpeg kurulu değil, kurulum kullanıcıdan onay ister).
 
-Atma sırası önerisi (günler arayla): 1) r/PixelArt → 2) r/SwiftUI → 3) r/IndieDev → 4) r/macapps (kuralları kontrol et, muhtemelen megathread).
+## Tek cümle
+"Glitch is a pixel ghost-knight that lives on your Mac desktop and keeps watch over all your Claude Code sessions: he tells you who is waiting for you with his sword instead of a popup."
+
+Atılacak yer sırası (günler arayla): 1) r/PixelArt, 2) r/ClaudeAI, 3) r/macapps (yalnızca kurallar izin verirse).
 
 ---
 
-## 1) r/PixelArt — görsel eleştiri (glitch-sheet.png)
+## 1) r/PixelArt – görsel eleştiri
 
-**Başlık:** Feedback wanted: dark gothic knight desktop pet, 64x96 sprite – is the silhouette readable?
+**Görsel:** `idle.png` + `permission.png` + `question.png` (3'lü), veya yeni GIF.
+
+**Başlık:** Feedback wanted: pixel ghost-knight sentinel, does the silhouette and the "state poses" read clearly?
 
 **Metin:**
-> I'm making a small desktop pet for macOS: a faceless dark knight with glowing red eyes, tattered crimson cape, pale-gold accents on near-black iron. Sprite is 64x96, drawn as separate parts (head, eyes, torso, cloak, arms, legs) so I can animate them independently.
+> I'm making a small desktop companion for macOS: a faceless dark knight with glowing red eyes, tattered crimson cloth and pale-gold accents on near-black iron. He has a few "state poses": standing guard, sword held upright, turning toward you, flicking the sword when done.
 >
-> Things I'm unsure about:
-> 1. Does the silhouette read clearly at small size?
-> 2. Palette: is the crimson + gold + blue-grey iron too busy?
-> 3. The sword feels long next to the body – too much?
+> What I'd love critique on:
+> 1. Does the silhouette read at small desktop size?
+> 2. Is crimson + gold + blue-grey iron too busy?
+> 3. Do the poses communicate their meaning without any text?
 >
-> Honest critique welcome, thanks!
+> Honest feedback welcome.
 
 ---
 
-## 2) r/SwiftUI — teknik (glitch-demo.gif)
+## 2) r/ClaudeAI – ürün + geri bildirim
 
-**Başlık:** Pixel-art desktop pet in pure SwiftUI (transparent borderless window, per-part sprite animation) – how would you structure the animation state?
+**Görsel:** yeni ekran kaydı GIF'i (permission → nöbet, finished → altın kıvılcım). Hazır değilse **atma**.
+
+**Başlık:** I made a pixel knight that keeps watch over all my Claude Code sessions (permission waits, questions, finished turns)
 
 **Metin:**
-> Built a macOS desktop pet in SwiftUI + Swift Concurrency. Borderless transparent floating window, sprites drawn as separate PNG parts, driven by a `Brain` that outputs a `Pose` struct each tick (eyes, head tilt, hand positions, sword rotation, step phase).
+> When I run 2-3 Claude Code sessions at once I keep missing the one that's waiting for me. So I built Glitch, a small native macOS desktop pet that watches every Claude Code session (desktop app and terminal, any project):
 >
-> Questions:
-> - Is a single `Pose` struct + timer the right approach, or should I move to `TimelineView`/`Canvas`?
-> - Best way to keep CPU near zero while idle?
-> - Reliable way to hide the window when another app goes fullscreen (I'm polling right now)?
+> - session needs **permission** → he keeps vigil, sword upright, crimson spark
+> - session **asked a question** → he turns to look at you, crimson spark
+> - session **finished** → he flicks his sword, gold spark
+> - session **crashed** → the sword slips and he catches it
 >
-> Happy to share code snippets. [GIF]
+> Hover shows the session list, click opens the most urgent one.
+>
+> How it works: a tiny hook script in `~/.claude/settings.json` (PermissionRequest, Stop, StopFailure) drops event files into a local folder; Glitch reads them. No network, no account, installs only after showing what it adds, existing hooks kept, backup written, "Remove" takes out only his entries.
+>
+> It's not public yet. I'd like opinions first:
+> - Is a calm "sentinel" better than notifications for you, or would you want sounds/notifications too?
+> - What other Claude Code events would you want him to react to?
+> - Would you trust a hook like this? What would you want to inspect first?
+>
 
 ---
 
-## 3) r/IndieDev — davranış fikirleri (glitch-demo.gif)
+## 3) r/macapps – SADECE kurallar izin verirse
 
-**Başlık:** Designing a desktop pet that's alive but never annoying – what idle behaviors would you add?
+Kural özeti (mirror sitelerden, doğrulanmadı): doğrudan app tanıtımı güven şartlarına bağlı, olmayanlar aylık "App Pile" megathread'ine yazıyor; şablon **Problem / Comparison / Pricing**. Repo özel ve uygulama dağıtılmıyor, bu yüzden şimdilik **atma**. Yayına açılınca megathread taslağı:
 
-**Metin:**
-> My pet is a serious, silent knight – no cutesy stuff. Current behaviors: breathing, blinking, eyes drifting, head tilts when the cursor gets close, draggable (reacts angry/surprised/happy), draws a sword after ~2 min idle, waves when the Mac wakes and looks sad when it sleeps.
->
-> What would make something like this feel like a real companion without becoming distracting? Reactions to typing? Time of day? Battery low? Anything you'd actually want, or hate, on your desktop?
-
----
-
-## 4) r/macapps — SADECE kurallar izin verirse
-
-Kural özeti (mirror sitelerden, doğrulanmadı): doğrudan app tanıtımı için güven şartları var; olmayanlar aylık "App Pile" megathread'ine yazıyor, şablon **Problem / Comparison / Pricing**. Uygulama henüz dağıtılmadığı için şimdilik **atma**, önce 1-3'ten gelen geri bildirimle geliştir; dağıtıma açınca megathread şablonu:
-
-> **Problem:** Desktop pets are either too cute or too distracting; I wanted a calm, dark, atmospheric companion.
-> **Comparison:** vs. Shimeji / Bongo Cat-style pets – hand-drawn pixel knight, reacts to cursor, sleep/wake, fullscreen-aware.
-> **Pricing:** Free. [link]
+> **Problem:** With several Claude Code sessions open I keep missing the one waiting for permission or an answer, and popups/notifications are noisy.
+> **Comparison:** Instead of notification banners or menu-bar badges, a calm pixel knight on the desktop shows state with poses and sparks (crimson = waiting for you, gold = done). Nothing leaves your Mac.
+> **Pricing:** Free. [link, repo public olunca]
 
 ---
 
 ## Yorumlara hazır cevaplar
+- "Where can I download it?" → "Not public yet, polishing the first release. Will post when it's out."
+- "Does it send data anywhere?" → "No network, no account. The hook only writes small event files into ~/Library/Application Support/Glitch/events/."
+- "Will it slow Claude Code down?" → "The hook script exits immediately, even when Glitch isn't running."
+- "Windows/Linux?" → "macOS 15+ only, native SwiftUI."
 
-- "Where can I download it?" → "Not public yet, still polishing. Will post when it's ready."
-- "Is it open source?" → (karar senin)
-- "Does it use much CPU?" → "Idle is near zero, I'm profiling it now."
+## Açık noktalar (karar kullanıcıda)
+- Repo ne zaman public olacak? (postların çoğu buna bağlı)
+- Yeni ekran kaydı gelene kadar hiçbir şey atılmayacak.
