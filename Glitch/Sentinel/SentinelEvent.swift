@@ -41,10 +41,8 @@ struct SentinelEvent: Equatable, Sendable {
             }
         case "UserPromptSubmit", "PermissionDenied":
             return .userActed                                  // the user wrote again or denied
-        case "PostToolUse":
-            return .toolDone                                   // approved tool ran / question answered (if it's that tool)
-        case "PostToolUseFailure":
-            return nil                                         // an ordinary tool error is not a session error
+        case "PostToolUse", "PostToolUseFailure":
+            return .toolDone                                   // approved tool ran (even if it failed) / question answered
         case "Stop":
             return .finished
         case "StopFailure":

@@ -69,6 +69,10 @@ struct HookInstallerTests {
                                           scriptPath: script))
     }
 
+    @Test func listensToFailedTools() {
+        #expect(HookInstaller.events.contains { $0.name == "PostToolUseFailure" })
+    }
+
     /// Claude Code runs the command through a shell, so the space in "Application Support" must not split it.
     @Test func hookCommandRunsThroughShellWithSpacesInPath() throws {
         let home = Fixture.tempDir().appendingPathComponent("with space")

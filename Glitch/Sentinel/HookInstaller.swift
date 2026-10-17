@@ -10,6 +10,7 @@ enum HookInstaller {
         ("Notification", nil),
         ("PreToolUse", "AskUserQuestion"),
         ("PostToolUse", nil),
+        ("PostToolUseFailure", nil),
         ("PermissionDenied", nil),
         ("UserPromptSubmit", nil),
         ("Stop", nil),

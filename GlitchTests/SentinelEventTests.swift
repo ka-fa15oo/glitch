@@ -23,7 +23,12 @@ struct SentinelEventTests {
     @Test func parsesUserActed() { #expect(parsed("userActed")?.kind == .userActed) }
     @Test func parsesEnded() { #expect(parsed("ended")?.kind == .ended) }
 
-    @Test func ignoresOrdinaryToolFailure() { #expect(parsed("toolFailure") == nil) }
+    /// An approved command that fails still ends the wait; it is not a session error.
+    @Test func toolFailureEndsTheWait() {
+        let e = parsed("toolFailure")
+        #expect(e?.kind == .toolDone)
+        #expect(e?.toolUseID == "toolu_01MzM8qyVGkkL3qzZkGMHtQa")
+    }
     @Test func ignoresIdlePrompt() { #expect(parsed("idlePrompt") == nil) }   // Stop already says "finished"
 
     @Test func toolDoneCarriesToolAndID() {

@@ -97,7 +97,7 @@ Aşağıdakiler test edilmedi. Uygulamaya başlamadan önce doğrulanmalı. Biri
    - Cevap bekliyor: `PreToolUse` + `tool_name: AskUserQuestion`. -p modunda doğrulanamadı; Task 8'de masaüstü oturumunda canlı doğrulandı (2026-10-17: karakter bekliyor pozuna geçti). `Notification` + `elicitation_dialog` de soru sayılır.
    - Kullanıcı ilgilendi: `UserPromptSubmit`, `PermissionDenied`; ve bekleyen aracın kendi `PostToolUse`'u (paralel araçlar yüzünden: önce `tool_use_id`, yoksa araç adı eşleşmeli).
    - İş bitti: `Stop`. `Notification` + `idle_prompt` yok sayılır (aynı bitiş iki kez sayılmasın).
-   - Hata: `StopFailure` (örnek: `error: model_not_found`). Sıradan araç hataları ayrı bir olaydır (`PostToolUseFailure`) ve yok sayılır.
+   - Hata: `StopFailure` (örnek: `error: model_not_found`). Sıradan araç hataları ayrı bir olaydır (`PostToolUseFailure`); hata sayılmaz ama `PostToolUse` gibi izin/soru beklemesini bitirir (onaylanan komut başarısız olsa da bekleme biter).
    - Oturum kapandı: `SessionEnd`. `SessionStart` yok sayılır.
 3. **Oturumu açmak:** Claude uygulaması her masaüstü oturumu için `~/Library/Application Support/Claude/claude-code-sessions/*/*/local_<id>.json` dosyası tutuyor; içinde hook'taki oturum kimliği (`cliSessionId`), bağlantıdaki kimlik (`sessionId: local_…`) ve başlık (`title`) var. Glitch bunu **sadece okur** ve `claude://claude.ai/epitaxy/local_<id>` açar (Claude.app `claude` şemasını kayıtlı). Belgelenmemiş iç bir dosya olduğu için okuma hata toleranslıdır: dosya yoksa, alan adı değiştiyse ya da JSON bozuksa masaüstü oturumu için Claude.app, terminal oturumu için çalışan terminal öne getirilir.
 4. **Oturum adı:** Önce olaydaki `session_title`, sonra yukarıdaki dosyadaki `title`, ikisi de yoksa kimliğin ilk 6 karakteri.
