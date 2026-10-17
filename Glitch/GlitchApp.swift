@@ -10,7 +10,7 @@ struct GlitchApp: App {
     init() { Prefs.register() }
 
     var body: some Scene {
-        MenuBarExtra("Glitch", systemImage: "square.grid.3x3.fill") {
+        MenuBarExtra("Glitch", image: "MenuBarIcon") {
             SettingsButtons()
             Divider()
             LoginToggle()
