@@ -14,6 +14,7 @@ struct GlitchApp: App {
             }
             GravityToggle(brain: delegate.brain)
             AccessibilityStatus()
+            SentinelMenu()
             Divider()
             Button("Çıkış") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
