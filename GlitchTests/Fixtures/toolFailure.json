@@ -1,0 +1,1 @@
+{"session_id":"s-perm","transcript_path":"/tmp/t.jsonl","cwd":"/Users/x/PET","hook_event_name":"PostToolUseFailure","tool_name":"Bash","error":"exit 1"}

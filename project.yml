@@ -16,3 +16,15 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "6.0"
+    scheme:
+      testTargets: [GlitchTests]
+  GlitchTests:
+    # logic tests: the sentinel sources are compiled straight into the bundle, so no app (no knight, no sounds) starts
+    type: bundle.unit-test
+    platform: macOS
+    sources: [GlitchTests, Glitch/Sentinel]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+        SWIFT_VERSION: "6.0"

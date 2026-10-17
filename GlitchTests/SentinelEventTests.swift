@@ -1,0 +1,36 @@
+import Foundation
+import Testing
+
+struct SentinelEventTests {
+    let date = Date(timeIntervalSince1970: 100)
+
+    private func parsed(_ name: String) -> SentinelEvent? { SentinelEvent.parse(Fixture.data(name), date: date) }
+
+    @Test func parsesPermission() {
+        let e = parsed("permission")
+        #expect(e?.kind == .permission)
+        #expect(e?.sessionID == "s-perm")
+        #expect(e?.cwd == "/Users/x/PET")
+        #expect(e?.date == date)
+    }
+
+    @Test func parsesQuestion() { #expect(parsed("question")?.kind == .question) }
+    @Test func parsesFinished() {
+        #expect(parsed("finished")?.kind == .finished)
+        #expect(parsed("finished")?.cwd == "/Users/x/Obsidian Vault")
+    }
+    @Test func parsesError() { #expect(parsed("error")?.kind == .error) }
+    @Test func parsesUserActed() { #expect(parsed("userActed")?.kind == .userActed) }
+    @Test func parsesEnded() { #expect(parsed("ended")?.kind == .ended) }
+
+    @Test func ignoresOrdinaryToolFailure() { #expect(parsed("toolFailure") == nil) }
+    @Test func ignoresUnknownEvent() { #expect(parsed("unknown") == nil) }
+    @Test func ignoresMalformedJSON() { #expect(SentinelEvent.parse(Data("{\"hook_event".utf8), date: date) == nil) }
+    @Test func ignoresMissingSessionID() {
+        #expect(SentinelEvent.parse(Data(#"{"hook_event_name":"Stop","cwd":"/p"}"#.utf8), date: date) == nil)
+    }
+    @Test func ignoresOtherToolsBeforeUse() {
+        let data = Data(#"{"session_id":"a","cwd":"/p","hook_event_name":"PreToolUse","tool_name":"Bash"}"#.utf8)
+        #expect(SentinelEvent.parse(data, date: date) == nil)
+    }
+}
