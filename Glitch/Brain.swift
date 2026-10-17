@@ -4,7 +4,7 @@ import AppKit
 @MainActor
 final class Brain {
     enum EyeKind { case open, half, closed, wide, angry, happy }
-    enum Action { case wake, farewell, sad, surprised, angry, happy, swing, look, glitch, guard_, finished, fumble }
+    enum Action { case wake, farewell, sad, surprised, angry, happy, swing, look, glitch, guard_, finished, fumble, flourish }
 
     /// How the sword is held while idle; switches rarely and at random.
     enum Stance: CaseIterable { case oneHand, twoHand, planted }
@@ -61,6 +61,52 @@ final class Brain {
     }
 
     private static func ease(_ x: Double) -> Double { let c = max(0, min(1, x)); return c * c * (3 - 2 * c) }
+
+    // MARK: - click flourish
+
+    /// Keyframes of the click flourish (one-handed): wind up, spin the sword like a baton, cock it back, cut down
+    /// through the front in one fast stroke, hold the lunge, recover.
+    private static let flourishKeys: [(t: Double, grip: CGPoint, rot: Double, torso: Double, dx: Double, crouch: Double, lift: Double)] = [
+        (0.00, CGPoint(x: 0, y: 0), 0.0, 0.04, 0, 0, 0),
+        (0.25, CGPoint(x: 0, y: -3), -0.5, 0.12, 1, 0.12, 1.2),
+        (0.75, CGPoint(x: 6, y: -10), -0.5, 0.10, 1, 0.10, 1.5),
+        (0.95, CGPoint(x: 8, y: -14), 2.4, 0.20, 2, 0.12, 2.0),
+        (1.10, CGPoint(x: -2, y: -2), 0.05, -0.14, -3.5, 0.28, -1.0),
+        (1.40, CGPoint(x: -2, y: -2), 0.05, -0.14, -3.5, 0.28, -1.0),
+        (1.85, CGPoint(x: 0, y: 0), 0.0, 0.04, 0, 0, 0),
+    ]
+
+    /// The sword and body at `e` seconds into the flourish; the view also uses it for the afterimages.
+    static func flourishState(e: Double) -> (grip: CGPoint, rot: Double, torso: Double, dx: Double, crouch: Double, lift: Double) {
+        let keys = flourishKeys
+        let t = max(0, min(keys.last!.t, e))
+        var i = 0
+        while i < keys.count - 2, t > keys[i + 1].t { i += 1 }
+        let a = keys[i], b = keys[i + 1]
+        var u = (t - a.t) / (b.t - a.t)
+        u = i == 3 ? u * u : ease(u)                                  // the cut accelerates; the rest eases
+        func mix(_ x: Double, _ y: Double) -> Double { x + (y - x) * u }
+        // two full turns about the hand between 0.3 and 0.75 s; they end where they began, so nothing unwinds
+        let spin = (e > 0.3 && e < 0.75) ? 4 * Double.pi * ease((e - 0.3) / 0.45) : 0
+        return (CGPoint(x: mix(a.grip.x, b.grip.x), y: mix(a.grip.y, b.grip.y)), mix(a.rot, b.rot) + spin,
+                mix(a.torso, b.torso), mix(a.dx, b.dx), mix(a.crouch, b.crouch), mix(a.lift, b.lift))
+    }
+
+    /// Click flourish: `e` 0...1.9 s.
+    static func applyFlourish(e: Double, to pose: inout Pose) {
+        let st = flourishState(e: e)
+        pose.nearHand = Skeleton.relaxedNear
+        pose.grip = st.grip
+        pose.swordRot = st.rot
+        pose.torsoRot = st.torso
+        pose.bodyDX = st.dx
+        pose.crouch = st.crouch
+        pose.shoulderLift = st.lift
+        pose.flourishAge = e
+        if e >= 1.0, e < 1.6 { pose.waveAge = e - 1.0 }                    // the slash wave leaves the blade
+        if e >= 1.1, e < 2.0 { pose.scrapeAge = e - 1.1 }                  // sparks where the point lands
+        if e >= 1.1 { pose.shakeX = sin(e * 90) * 1.2 * exp(-(e - 1.1) * 12) }
+    }
 
     /// Session error: the sword slips out of the far hand, tips and drops, and is caught again. `e` 0...1.3 s.
     static func applyFumble(e: Double, to pose: inout Pose) {
@@ -173,6 +219,8 @@ final class Brain {
         var kneel = 0.0         // 0...1 down on one knee (goodbye)
         var slip = CGPoint.zero // the sword slides through the hands by this much (art px), hands stay put
         var slipRot = 0.0       // and turns by this much (radians)
+        var flourishAge = -1.0  // seconds into the click flourish (drives the sword's afterimages); < 0 = none
+        var waveAge = -1.0      // seconds since the slash wave left the blade; < 0 = none
         var scrapeAge = -1.0    // seconds since the sword point began to scrape the ground; < 0 = none
         var sparkFlight = -1.0  // 0...1 the last gold spark flying from the sword point to the shoulder; < 0 = none
         var redSparks = 0       // shoulder sparks: waiting for the user
@@ -272,6 +320,7 @@ final class Brain {
         case .guard_: 6.6
         case .finished: 2.1
         case .fumble: 1.3
+        case .flourish: 1.9
         }
     }
 
@@ -289,13 +338,14 @@ final class Brain {
         case .guard_: nil
         case .finished: nil      // its own sounds play at the flick and the scrape
         case .fumble: nil
+        case .flourish: nil      // its own sounds play at the spin, the strike and the plant
         }
     }
 
     func start(_ kind: Action, at now: Double = CACurrentMediaTime(), silent: Bool = false) {
         action = (kind, now)
         if kind == .wake, !beginLanding() { appearStart = now; action = (.wake, now + 2.4) }   // no room to fall: arrive inside the blood
-        if kind == .finished || kind == .fumble { finishedStage = 0 }
+        if kind == .finished || kind == .fumble || kind == .flourish { finishedStage = 0 }
         if kind == .guard_ { guardKind = Guard.allCases.randomElement()! }
         walkTarget = nil
         if !silent, let effect = sound(for: kind) { onSound?(effect) }
@@ -395,7 +445,9 @@ final class Brain {
 
     /// A click: a silent sword swing.
     func clicked(at now: Double = CACurrentMediaTime()) {
-        // shortcut: a click does nothing for now (the sword swing felt too slow); give it a new reaction later
+        // only when it is idle: no action, no sentinel pose, not landing, falling or being carried
+        guard action == nil, landing == nil, sentinelHold == .none, now - lastMove > 1.0 else { return }
+        if case .none = drop { start(.flourish, at: now, silent: true) }
     }
 
     // MARK: - per frame
@@ -642,6 +694,7 @@ final class Brain {
             eyeFade = 0
         }
         eyeFade = min(1, eyeFade + dt / 0.09)
+        if target.flourishAge >= 0 { s.swordRot = target.swordRot; s.grip = target.grip }   // fast spins must not lag behind
         smoothed = s
 
         var out = target
@@ -929,6 +982,11 @@ final class Brain {
             Self.applyFinished(e: e, to: &pose)
             if e > 0.22, finishedStage < 1 { finishedStage = 1; onSound?(.swish) }
             if e > 0.8, finishedStage < 2 { finishedStage = 2; onSound?(.scrape) }
+        case .flourish:
+            Self.applyFlourish(e: e, to: &pose)
+            if e > 0.28, finishedStage < 1 { finishedStage = 1; onSound?(.swish) }
+            if e > 0.97, finishedStage < 2 { finishedStage = 2; onSound?(.swish) }
+            if e > 1.08, finishedStage < 3 { finishedStage = 3; onSound?(.clang) }
         case .fumble:
             Self.applyFumble(e: e, to: &pose)
             if e > 0.62, finishedStage < 1 { finishedStage = 1; onSound?(.tick) }     // a faint tick as it is caught
