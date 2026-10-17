@@ -30,6 +30,12 @@ final class SoundBank {
         try? engine.start()
     }
 
+    /// Before the Mac sleeps: stop the audio engine and drop anything still queued, so nothing plays on waking.
+    func suspend() {
+        player.stop()
+        engine.pause()
+    }
+
     func play(_ effect: SoundEffect) {
         guard !isMuted else { return }
         if !engine.isRunning { try? engine.start() }

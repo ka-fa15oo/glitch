@@ -61,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var clickMonitor: Any?
     private var mouseDownAt: (time: Double, origin: CGPoint, mouse: CGPoint)?
     private var hoverTimer: Timer?
+    private var screenLocked = false
+    private var lastWake = -100.0
+    private var fullscreenHits = 0
     private var pressedQuitButton = false
     private var fullscreenTimer: Timer?
     private var brainTimer: Timer?
@@ -98,7 +101,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.orderFrontRegardless()
         self.window = window
 
-        brain.onSound = { [weak self] effect in self?.sound.play(effect) }
+        // stay silent while the screen is locked, asleep or the knight is hidden
+        brain.onSound = { [weak self] effect in
+            guard let self, !self.screenLocked, let window = self.window, window.isVisible,
+                  window.occlusionState.contains(.visible) else { return }
+            self.sound.play(effect)
+        }
         brain.mouseTarget = { [weak self] in
             guard let frame = self?.window?.frame else { return nil }
             return (NSEvent.mouseLocation, CGPoint(x: frame.midX, y: frame.midY))
@@ -117,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let window = self?.window, let screen = window.screen ?? NSScreen.main else { return 0 }
             return screen.visibleFrame.minY - CGFloat(RobotView.padBottom) * RobotView.scale
         }
-        brain.start(.wake)
+        wakeUp()
         // common modes: the goodbye plays while a pending terminate has the run loop in the modal mode
         brainTimer?.invalidate()
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
@@ -128,13 +136,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let workspace = NSWorkspace.shared.notificationCenter
         workspace.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.brain.start(.sad) }
+            MainActor.assumeIsolated {
+                self?.brain.start(.sad)
+                self?.sound.suspend()
+            }
         }
         workspace.addObserver(forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.brain.start(.farewell) }
         }
         workspace.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.brain.start(.wake) }
+            MainActor.assumeIsolated { self?.wakeUp() }
+        }
+        let distributed = DistributedNotificationCenter.default()
+        distributed.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.screenLocked = true }
+        }
+        distributed.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.screenLocked = false }
         }
 
         clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp, .leftMouseDragged]) { [weak self] event in
@@ -226,30 +244,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateVisibility() {
         guard let window else { return }
-        let hide = Self.fullscreenAppIsFrontmost()
+        // two checks in a row (4 s) before hiding, so a lock screen or a window flicking by doesn't toggle it
+        fullscreenHits = Self.fullscreenAppIsFrontmost() ? fullscreenHits + 1 : 0
+        let hide = fullscreenHits >= 2
         if hide, window.isVisible {
             window.orderOut(nil)
         } else if !hide, !window.isVisible {
             window.orderFrontRegardless()
-            brain.windowOrigin = { [weak self] in self?.window?.frame.origin ?? .zero }
-        brain.setWindowOrigin = { [weak self] origin in self?.window?.setFrameOrigin(origin) }
-        brain.walkBounds = { [weak self] in
-            guard let window = self?.window, let screen = window.screen ?? NSScreen.main else { return .zero }
-            let f = screen.visibleFrame
-            let floor = f.minY - CGFloat(RobotView.padBottom) * RobotView.scale
-            return CGRect(x: f.minX - CGFloat(RobotView.padLeft) * RobotView.scale, y: floor,
-                          width: f.width - window.frame.width + CGFloat(RobotView.padLeft + RobotView.padRight) * RobotView.scale,
-                          height: f.maxY - floor - window.frame.height + CGFloat(RobotView.padTop) * RobotView.scale)
+            wakeUp()
         }
+    }
+
+    /// Plays the arrival at most once every 20 s; waking, unlocking and un-hiding often come in bursts.
+    private func wakeUp() {
+        let now = CACurrentMediaTime()
+        guard now - lastWake > 20 else { return }
+        lastWake = now
         brain.start(.wake)
-        // common modes: the goodbye plays while a pending terminate has the run loop in the modal mode
-        brainTimer?.invalidate()
-        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.brain.update(at: CACurrentMediaTime()) }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        brainTimer = timer
-        }
     }
 
     private static func fullscreenAppIsFrontmost() -> Bool {
