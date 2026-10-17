@@ -4,7 +4,7 @@ import AppKit
 @MainActor
 final class Brain {
     enum EyeKind { case open, half, closed, wide, angry, happy }
-    enum Action { case wake, farewell, sad, surprised, angry, happy, swing, look, glitch, guard_, finished }
+    enum Action { case wake, farewell, sad, surprised, angry, happy, swing, look, glitch, guard_, finished, fumble }
 
     /// How the sword is held while idle; switches rarely and at random.
     enum Stance: CaseIterable { case oneHand, twoHand, planted }
@@ -62,6 +62,19 @@ final class Brain {
     }
 
     private static func ease(_ x: Double) -> Double { let c = max(0, min(1, x)); return c * c * (3 - 2 * c) }
+
+    /// Session error: the sword slips out of the far hand, tips and drops, and is caught again. `e` 0...1.3 s.
+    static func applyFumble(e: Double, to pose: inout Pose) {
+        let slip = ease((e - 0.2) / 0.35), catchUp = ease((e - 0.58) / 0.12), settle = ease((e - 0.75) / 0.5)
+        let loose = slip * (1 - catchUp)                       // how far the sword has left the hands
+        // the hands stay where they were; only the sword drops through them
+        pose.slip = CGPoint(x: 0, y: -10 * loose)
+        pose.slipRot = -0.35 * loose                           // the point drops, the blade swings towards vertical (never below the ground)
+        pose.shoulderLift = -1.2 * loose + 1.0 * catchUp * (1 - settle)
+        pose.headDY += 1.0 * loose
+        pose.torsoRot = 0.04 * loose
+        pose.bodyDY = 1.6 * sin(.pi * max(0, min(1, (e - 0.2) / 0.25)))     // a jolt as it slips: down and back
+    }
 
     /// Session finished: the wrist flicks the blood off the blade (0 to 0.8 s), then the point is dragged along the
     /// ground in a shower of gold sparks (0.8 to 1.6 s), and the sword settles (to 2.1 s). The last spark flies to the
@@ -159,6 +172,8 @@ final class Brain {
         var fallAmount = 0.0
         var crouch = 0.0        // 0...1 knees bent (landing)
         var kneel = 0.0         // 0...1 down on one knee (goodbye)
+        var slip = CGPoint.zero // the sword slides through the hands by this much (art px), hands stay put
+        var slipRot = 0.0       // and turns by this much (radians)
         var scrapeAge = -1.0    // seconds since the sword point began to scrape the ground; < 0 = none
         var sparkFlight = -1.0  // 0...1 the last gold spark flying from the sword point to the shoulder; < 0 = none
         var splashAge = -1.0    // seconds since the landing splash began; < 0 = none
@@ -254,6 +269,7 @@ final class Brain {
         case .glitch: 0.4
         case .guard_: 6.6
         case .finished: 2.1
+        case .fumble: 1.3
         }
     }
 
@@ -270,13 +286,14 @@ final class Brain {
         case .glitch: .glitch
         case .guard_: nil
         case .finished: nil      // its own sounds play at the flick and the scrape
+        case .fumble: nil
         }
     }
 
     func start(_ kind: Action, at now: Double = CACurrentMediaTime(), silent: Bool = false) {
         action = (kind, now)
         if kind == .wake, !beginLanding() { appearStart = now; action = (.wake, now + 2.4) }   // no room to fall: arrive inside the blood
-        if kind == .finished { finishedStage = 0 }
+        if kind == .finished || kind == .fumble { finishedStage = 0 }
         if kind == .guard_ { guardKind = Guard.allCases.randomElement()! }
         walkTarget = nil
         if !silent, let effect = sound(for: kind) { onSound?(effect) }
@@ -907,6 +924,9 @@ final class Brain {
             Self.applyFinished(e: e, to: &pose)
             if e > 0.22, finishedStage < 1 { finishedStage = 1; onSound?(.swish) }
             if e > 0.8, finishedStage < 2 { finishedStage = 2; onSound?(.scrape) }
+        case .fumble:
+            Self.applyFumble(e: e, to: &pose)
+            if e > 0.62, finishedStage < 1 { finishedStage = 1; onSound?(.tick) }     // a faint tick as it is caught
         case .guard_:
             let k = ease(e / 0.5) * (1 - ease((e - 6.0) / 0.6))
             Self.applyGuard(guardKind, k: k, to: &pose)
@@ -928,6 +948,11 @@ extension Brain {
     /// A session finished: flick the blood off, scrape the point along the ground, one gold spark settles on the shoulder.
     func playFinished(at now: Double = CACurrentMediaTime()) {
         start(.finished, at: now, silent: true)
+    }
+
+    /// A session stopped with an error: the sword slips out of the hand and is caught again.
+    func playError(at now: Double = CACurrentMediaTime()) {
+        start(.fumble, at: now, silent: true)
     }
 
     func setSentinel(hold: SentinelHold, redSparks: Int, goldSparks: Int, at now: Double = CACurrentMediaTime()) {

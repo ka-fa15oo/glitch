@@ -441,6 +441,10 @@ struct RobotView: View {
             swordRot += (ref.swordRestRot - swordRot) * letGo
         }
 
+        // a slipping sword moves on its own while the hands stay where they were
+        swordGrip.x += pose.slip.x; swordGrip.y += pose.slip.y
+        swordRot += pose.slipRot
+
         /// World-space point -> the torso's local frame (undo the body offset and the lean).
         func toTorso(_ p: CGPoint) -> CGPoint {
             rotate(CGPoint(x: p.x - bx, y: p.y - by), by: -pose.torsoRot, about: rig.waist)
