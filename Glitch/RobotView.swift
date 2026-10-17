@@ -1,16 +1,17 @@
 import SwiftUI
 
 struct RobotView: View {
-    static let scale: CGFloat = 2
+    /// Set from Customize; the pet window resizes when it changes.
+    static var scale: CGFloat { CGFloat(Prefs.d.double(forKey: Prefs.scale)) }
     /// Transparent room around the sprite so the sword can swing and a carried body can dangle.
     static let padLeft = 22, padRight = 18, padTop = 14, padBottom = 14
-    static let canvasSize = CGSize(
-        width: CGFloat(Sprite.width + padLeft + padRight) * scale,
-        height: CGFloat(Sprite.height + padTop + padBottom) * scale
-    )
+    static var canvasSize: CGSize {
+        CGSize(width: CGFloat(Sprite.width + padLeft + padRight) * scale,
+               height: CGFloat(Sprite.height + padTop + padBottom) * scale)
+    }
 
     /// The grave-cross revealed by a double-click, right above the head (view coordinates, origin top-left).
-    static let quitRect = CGRect(x: canvasSize.width / 2 - 11, y: 18, width: 22, height: 22)
+    static var quitRect: CGRect { CGRect(x: canvasSize.width / 2 - 11, y: 9 * scale, width: 22, height: 22) }
 
     var brain: Brain?
     var fixedTime: Double?

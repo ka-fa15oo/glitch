@@ -11,7 +11,6 @@ final class SoundBank {
     private let player = AVAudioPlayerNode()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
     private var buffers: [String: AVAudioPCMBuffer] = [:]
-    var isMuted = false
 
     private enum Wave { case sine, square, noise }
     private struct Step {
@@ -37,7 +36,9 @@ final class SoundBank {
     }
 
     func play(_ effect: SoundEffect) {
-        guard !isMuted else { return }
+        // Sound tab: mute, volume and per-group switches are read on every play, so changes apply at once
+        guard !Prefs.d.bool(forKey: Prefs.muted), SoundGroup.allows(effect) else { return }
+        engine.mainMixerNode.outputVolume = Float(Prefs.d.double(forKey: Prefs.volume))
         if !engine.isRunning { try? engine.start() }
         guard engine.isRunning else { return }
         let key = "\(effect)"

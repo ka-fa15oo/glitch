@@ -6,19 +6,50 @@ import SwiftUI
 struct GlitchApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
+    init() { Prefs.register() }
+
     var body: some Scene {
         MenuBarExtra("Glitch", systemImage: "square.grid.3x3.fill") {
+            SettingsButtons()
+            Divider()
             LoginToggle()
-            Button(delegate.sound.isMuted ? "Sesi aç" : "Sessize al") {
-                delegate.sound.isMuted.toggle()
-            }
-            GravityToggle(brain: delegate.brain)
+            MuteToggle()
             AccessibilityStatus()
             SentinelMenu()
             Divider()
             Button("Çıkış") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
         }
+        Window("Glitch", id: "settings") {
+            SettingsView()
+        }
+        .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.suppressed)
+    }
+}
+
+private struct SettingsButtons: View {
+    @Environment(\.openWindow) private var openWindow
+    @AppStorage(Prefs.settingsTab) private var tab = "customize"
+
+    var body: some View {
+        Button("Customize…") { open("customize") }
+            .keyboardShortcut(",")
+        Button("Ses…") { open("sound") }
+    }
+
+    private func open(_ name: String) {
+        tab = name
+        openWindow(id: "settings")
+        NSApp.activate()   // an accessory app's window otherwise opens behind the frontmost app
+    }
+}
+
+private struct MuteToggle: View {
+    @AppStorage(Prefs.muted) private var muted = false
+
+    var body: some View {
+        Button(muted ? "Sesi aç" : "Sessize al") { muted.toggle() }
     }
 }
 
@@ -38,18 +69,6 @@ private struct AccessibilityStatus: View {
     }
 }
 
-private struct GravityToggle: View {
-    let brain: Brain
-    @State private var on = true
-
-    var body: some View {
-        Button(on ? "✓ Yer çekimi" : "Yer çekimi") {
-            on.toggle()
-            brain.gravityEnabled = on
-        }
-    }
-}
-
 private struct LoginToggle: View {
     @State private var enabled = SMAppService.mainApp.status == .enabled
 
@@ -62,6 +81,17 @@ private struct LoginToggle: View {
             }
             enabled = SMAppService.mainApp.status == .enabled
         }
+    }
+}
+
+/// The pet window's content: the character tinted with the Customize colour theme.
+private struct PetRoot: View {
+    let brain: Brain
+    @AppStorage(Prefs.hue) private var hue = 0.0
+    @AppStorage(Prefs.scale) private var scale = 2.0   // re-lays out the canvas when the size changes
+
+    var body: some View {
+        RobotView(brain: brain).hueRotation(.degrees(hue))
     }
 }
 
@@ -98,6 +128,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
             return
         }
+        if let flag = args.firstIndex(of: "--settings-snapshot"), args.indices.contains(flag + 2) {
+            renderSettings(to: args[flag + 1], tab: args[flag + 2])
+            return
+        }
 
         NSApp.setActivationPolicy(.accessory)
         let size = RobotView.canvasSize
@@ -114,7 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.isMovableByWindowBackground = false
         window.acceptsMouseMovedEvents = true
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-        window.contentView = NSHostingView(rootView: RobotView(brain: brain))
+        window.contentView = NSHostingView(rootView: PetRoot(brain: brain))
         if let screen = NSScreen.main {
             let f = screen.visibleFrame
             window.setFrameOrigin(NSPoint(x: f.midX - size.width / 2, y: f.midY - size.height / 2))
@@ -145,6 +179,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         brain.groundY = { [weak self] in
             guard let window = self?.window, let screen = window.screen ?? NSScreen.main else { return 0 }
             return screen.visibleFrame.minY - CGFloat(RobotView.padBottom) * RobotView.scale
+        }
+        applyPrefs()
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.applyPrefs() }
         }
         wakeUp()
         let hub = SentinelHub.shared
@@ -294,12 +332,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return Sprite.hit(ax, ay)
     }
 
+    // MARK: - Customize settings
+
+    private func applyPrefs() {
+        brain.gravityEnabled = Prefs.d.bool(forKey: Prefs.gravity)
+        brain.restScale = [2.0, 1.0, 0.5][min(max(Prefs.d.integer(forKey: Prefs.liveliness), 0), 2)]
+        guard let window else { return }
+        let size = RobotView.canvasSize, old = window.frame
+        guard old.size != size else { return }
+        // keep the feet where they were: the transparent padding under them grows with the scale
+        let oldScale = old.width / CGFloat(Sprite.width + RobotView.padLeft + RobotView.padRight)
+        let pad = CGFloat(RobotView.padBottom)
+        window.setFrame(NSRect(x: old.midX - size.width / 2, y: old.minY + pad * (oldScale - RobotView.scale),
+                               width: size.width, height: size.height), display: true)
+    }
+
     // MARK: - hide while a fullscreen app is up
 
     private func updateVisibility() {
         guard let window else { return }
         // two checks in a row (4 s) before hiding, so a lock screen or a window flicking by doesn't toggle it
-        fullscreenHits = Self.fullscreenAppIsFrontmost() ? fullscreenHits + 1 : 0
+        let watch = Prefs.d.bool(forKey: Prefs.hideInFullscreen)
+        fullscreenHits = watch && Self.fullscreenAppIsFrontmost() ? fullscreenHits + 1 : 0
         let hide = fullscreenHits >= 2
         if hide, window.isVisible {
             window.orderOut(nil)
@@ -355,6 +409,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - snapshot (dev helper)
+
+    /// Dev helper: draws the Customize or Sound tab to a PNG without clicking through the menu bar.
+    private func renderSettings(to path: String, tab: String) {
+        Prefs.d.set(tab, forKey: Prefs.settingsTab)
+        let window = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 620, height: 580),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = NSHostingView(rootView: SettingsView())
+        window.orderFrontRegardless()
+        self.window = window
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            guard let view = window.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+            view.cacheDisplay(in: view.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+            exit(0)   // skip the goodbye animation that terminate would play
+        }
+    }
 
     private func renderSnapshot(to path: String, time: Double, mood: String) {
         var pose = Brain.Pose()
