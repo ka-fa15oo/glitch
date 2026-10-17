@@ -124,6 +124,33 @@ struct RobotView: View {
         return (chosen, CGPoint(x: s.x + dx, y: s.y + dy))
     }
 
+    // MARK: - slash wave
+
+    /// A crescent of steel-white light that leaves the blade at the end of the cut and flies forward, thinning out.
+    private static func drawWave(_ ctx: GraphicsContext, unit: CGFloat, age: Double) {
+        guard age >= 0, age < 0.55 else { return }
+        let p = age / 0.55
+        let r = 26.0 * (0.8 + 0.4 * p)
+        let c1 = CGPoint(x: 28 - 95 * p, y: 52 - 14 * p)                     // forward is to the left, a little up
+        let c2 = CGPoint(x: c1.x + 0.55 * r, y: c1.y - 0.25 * r)             // the bite taken out of the disc leaves a crescent
+        var white = Path(), blue = Path(), deep = Path()
+        for y in Int(c1.y - r) ... Int(c1.y + r) {
+            for x in Int(c1.x - r) ... Int(c1.x + r) {
+                let px = Double(x) + 0.5, py = Double(y) + 0.5
+                let d1 = hypot(px - c1.x, py - c1.y)
+                if d1 >= r || hypot(px - c2.x, py - c2.y) < r { continue }
+                let rim = r - d1                                              // distance in from the outer edge
+                let rect = CGRect(x: CGFloat(x) * unit, y: CGFloat(y) * unit, width: unit, height: unit)
+                if rim < 1.6 { white.addRect(rect) } else if rim < 4.5 { blue.addRect(rect) } else { deep.addRect(rect) }
+            }
+        }
+        var layer = ctx
+        layer.opacity = 0.95 * (1 - p * p)
+        layer.fill(deep, with: .color(Color(red: 0.28, green: 0.38, blue: 0.58)))
+        layer.fill(blue, with: .color(Color(red: 0.55, green: 0.72, blue: 0.90)))
+        layer.fill(white, with: .color(Color(red: 0.93, green: 0.97, blue: 1.0)))
+    }
+
     // MARK: - sparks
 
     private static let goldLight = Color(red: 0.96, green: 0.80, blue: 0.36)
@@ -412,10 +439,27 @@ struct RobotView: View {
             draw(eyes, layer, unit: unit, size: size, translate: eyeShift, angle: pose.headRot, pivot: rig.neck)
         }
 
+        // afterimages of the sword during the click flourish: the same sword a few instants earlier, fading
+        if pose.flourishAge > 0.3 {
+            for i in 1 ... 7 {
+                let past = pose.flourishAge - 0.011 * Double(i)
+                if past < 0.3 { break }
+                let st = Brain.flourishState(e: past)
+                let gp = CGPoint(x: rig.grip.x + st.grip.x + body.x, y: rig.grip.y + st.grip.y + body.y)
+                var ghost = ctx
+                ghost.opacity = 0.5 * (1 - Double(i) / 8)
+                draw(Sprite.sword, ghost, unit: unit, size: size,
+                     translate: CGPoint(x: gp.x - ref.spriteGrip.x, y: gp.y - ref.spriteGrip.y),
+                     angle: st.rot + ref.swordRestRot, pivot: ref.spriteGrip)
+            }
+        }
+
         // the sword lives in world space; the near arm is drawn over it
         draw(Sprite.sword, ctx, unit: unit, size: size,
              translate: CGPoint(x: swordGrip.x - ref.spriteGrip.x, y: swordGrip.y - ref.spriteGrip.y),
              angle: swordRot, pivot: ref.spriteGrip)
+
+        if pose.waveAge >= 0 { drawWave(ctx, unit: unit, age: pose.waveAge) }
 
         // gold sparks where the point scrapes the ground, and the last one flying to the shoulder
         if pose.scrapeAge >= 0 || pose.sparkFlight >= 0 {
