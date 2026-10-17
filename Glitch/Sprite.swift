@@ -83,6 +83,17 @@ enum Sprite {
         return (0 ..< width * height).map { data[$0 * 4 + 3] > 20 }
     }()
 
+    /// The box round everything the standing character covers on the sprite grid, sword tip and cape included.
+    static let hitBounds: CGRect = {
+        var minX = width, maxX = 0, minY = height, maxY = 0
+        for y in 0 ..< height {
+            for x in 0 ..< width where hitMask[y * width + x] {
+                minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+            }
+        }
+        return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+    }()
+
     /// True when (x, y) on the sprite grid, or a pixel right next to it, is part of the character.
     static func hit(_ x: Int, _ y: Int) -> Bool {
         for dy in -1 ... 1 {

@@ -165,10 +165,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // keep out of the text box the user is typing in (needs the Accessibility permission)
         TextFieldGuard.askForPermission()
         brain.keepOut = { [weak self] in self?.typingFrame }
-        brain.bodyFrame = { origin in
-            let scale = RobotView.scale
-            return CGRect(x: origin.x + CGFloat(RobotView.padLeft) * scale + 8, y: origin.y + CGFloat(RobotView.padBottom) * scale,
-                          width: CGFloat(Sprite.width) * scale - 16, height: CGFloat(Sprite.height) * scale)
+        // the whole silhouette (sword tip and cape too), on the side the knight is facing
+        brain.bodyFrame = { [weak self] origin in
+            let scale = RobotView.scale, art = Sprite.hitBounds
+            let canvasWidth = RobotView.canvasSize.width
+            let left = (CGFloat(RobotView.padLeft) + art.minX) * scale
+            let x = self?.brain.current.facingRight == true ? canvasWidth - left - art.width * scale : left
+            let bottom = (CGFloat(RobotView.padBottom) + CGFloat(Sprite.height) - art.maxY) * scale
+            return CGRect(x: origin.x + x, y: origin.y + bottom, width: art.width * scale, height: art.height * scale)
         }
         textTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.typingFrame = TextFieldGuard.focusedTextFrame() }

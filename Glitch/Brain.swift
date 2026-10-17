@@ -441,23 +441,23 @@ final class Brain {
         }
     }
 
-    /// True when the knight's body at `origin` would cover the text box being typed in (with a little margin).
+    /// True when the knight at `origin` would come within ~30 pt of the text box being typed in.
     private func blocked(_ origin: CGPoint) -> Bool {
         guard let box = keepOut() else { return false }
-        return bodyFrame(origin).intersects(box.insetBy(dx: -12, dy: -12))
+        return bodyFrame(origin).intersects(box.insetBy(dx: -30, dy: -24))
     }
 
     /// Walks to the nearer side of the text box; with no room beside it, climbs onto its top edge.
     private func stepOutOfTheWay() {
         guard let box = keepOut() else { return }
         let origin = windowOrigin(), body = bodyFrame(origin), bounds = walkBounds()
-        let left = CGPoint(x: origin.x - (body.maxX - (box.minX - 16)), y: origin.y)
-        let right = CGPoint(x: origin.x + ((box.maxX + 16) - body.minX), y: origin.y)
+        let left = CGPoint(x: origin.x - (body.maxX - (box.minX - 36)), y: origin.y)
+        let right = CGPoint(x: origin.x + ((box.maxX + 36) - body.minX), y: origin.y)
         let free = [left, right].filter { $0.x >= bounds.minX && $0.x <= bounds.maxX && !blocked($0) }
         if let nearest = free.min(by: { abs($0.x - origin.x) < abs($1.x - origin.x) }) {
             walkTarget = nearest
         } else {
-            let ledge = CGPoint(x: origin.x, y: origin.y + ((box.maxY + 14) - body.minY))
+            let ledge = CGPoint(x: origin.x, y: origin.y + ((box.maxY + 28) - body.minY))
             if ledge.y <= bounds.maxY { walkTarget = ledge }
         }
         action = nil
