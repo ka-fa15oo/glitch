@@ -1,4 +1,5 @@
 import AppKit
+import os
 import ServiceManagement
 import SwiftUI
 
@@ -112,6 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sentinel: SentinelController?
     private var textTimer: Timer?
     private var typingProblem = ""
+    private static let textLog = Logger(subsystem: "com.kafa1500.glitch", category: "textguard")
     private var typingFrame: CGRect?
     private var screenLocked = false
     private var lastWake = -100.0
@@ -240,7 +242,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 let frame = TextFieldGuard.focusedTextFrame()
                 if frame != self.typingFrame || TextFieldGuard.lastProblem != self.typingProblem {
-                    NSLog("Glitch text box: %@", frame.map { NSStringFromRect($0) } ?? TextFieldGuard.lastProblem)
+                    // public: only app ids, roles and frames, never what the user types
+                    Self.textLog.notice("text box: \(frame.map { NSStringFromRect($0) } ?? TextFieldGuard.lastProblem, privacy: .public)")
                 }
                 self.typingFrame = frame
                 self.typingProblem = TextFieldGuard.lastProblem
