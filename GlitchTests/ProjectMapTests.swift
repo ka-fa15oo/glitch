@@ -33,4 +33,30 @@ struct ProjectMapTests {
         map.noteSeen("/b")
         #expect(ProjectMap(defaults: defaults).known == ["/a", "/b"])
     }
+
+    @Test func subfolderCountsAsItsProject() {
+        let map = ProjectMap(defaults: defaults)
+        map.noteSeen("/u/PET/Glitch")
+        map.noteSeen("/u/PET")
+        map.noteSeen("/u/PET/Glitch-app")
+        map.noteSeen("/u/PETS")
+        #expect(map.known == ["/u/PET", "/u/PETS"])
+        map.setIncluded("/u/PET", false)
+        #expect(!map.isIncluded("/u/PET/Glitch/deep"))
+        #expect(map.isIncluded("/u/PETS"))
+        #expect(map.name(for: "/u/PET/Glitch") == "PET")
+    }
+
+    @Test func storedSubfoldersAreFolded() {
+        defaults.set(["/u/PET", "/u/PET/Glitch"], forKey: "sentinel.knownProjects")
+        #expect(ProjectMap(defaults: defaults).known == ["/u/PET"])
+    }
+
+    @Test func sameNameGetsParentFolder() {
+        let map = ProjectMap(defaults: defaults)
+        map.noteSeen("/u/work/PET")
+        map.noteSeen("/u/home/PET")
+        #expect(map.name(for: "/u/work/PET") == "PET (work)")
+        #expect(map.name(for: "/u/home/PET/x") == "PET (home)")
+    }
 }
