@@ -13,9 +13,26 @@ struct GlitchApp: App {
                 delegate.sound.isMuted.toggle()
             }
             GravityToggle(brain: delegate.brain)
+            AccessibilityStatus()
             Divider()
             Button("Çıkış") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
+        }
+    }
+}
+
+/// Shows whether the text-box guard can work; opens the Accessibility settings when it can't.
+private struct AccessibilityStatus: View {
+    var body: some View {
+        if AXIsProcessTrusted() {
+            Text("✓ Yazı kutusu koruması açık")
+        } else {
+            Button("⚠︎ Yazı kutusu koruması kapalı: izin ver…") {
+                TextFieldGuard.askForPermission()
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
         }
     }
 }
@@ -175,7 +192,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return CGRect(x: origin.x + x, y: origin.y + bottom, width: art.width * scale, height: art.height * scale)
         }
         textTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.typingFrame = TextFieldGuard.focusedTextFrame() }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let frame = TextFieldGuard.focusedTextFrame()
+                if frame != self.typingFrame {
+                    NSLog("Glitch text box: %@ (trusted: %d)", frame.map { NSStringFromRect($0) } ?? "none", AXIsProcessTrusted() ? 1 : 0)
+                }
+                self.typingFrame = frame
+            }
         }
 
         // clicks only land on the character's own pixels; the empty rest of the window lets them through
