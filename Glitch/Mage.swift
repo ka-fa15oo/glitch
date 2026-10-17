@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Character 2, the cosmic mage. It shares the brain (breathing, blinking, drag, gravity) with Glitch but has its own
+/// Wizzy, the cosmic mage (Character 2). It shares the brain (breathing, blinking, drag, gravity) with Glitch but has its own
 /// drawing: no legs or sword rig, it hovers and holds a star-tipped staff (sprites from Tools/make_mage.py).
 enum Mage {
     static let id = "mage"

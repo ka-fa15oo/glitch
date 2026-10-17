@@ -62,7 +62,7 @@ struct CharacterInfo: Identifiable {
 
     static let all = [
         CharacterInfo(id: "glitch", name: "Glitch", theme: "Cursed digital knight", available: true),
-        CharacterInfo(id: Mage.id, name: "Character 2", theme: "Cosmic mage", available: true),
+        CharacterInfo(id: Mage.id, name: "Wizzy", theme: "Cosmic mage", available: true),
         CharacterInfo(id: "slot3", name: "Character 3", theme: "Coming soon", available: false),
     ]
 }
