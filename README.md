@@ -78,3 +78,7 @@ xcodebuild -scheme Glitch -destination 'platform=macOS' test
 3. Optional: grant **Accessibility** (System Settings → Privacy & Security) so he can step out of the way of text boxes.
 
 > The menus are in Turkish for now.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
