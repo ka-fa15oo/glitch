@@ -111,6 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hoverTimer: Timer?
     private var sentinel: SentinelController?
     private var textTimer: Timer?
+    private var typingProblem = ""
     private var typingFrame: CGRect?
     private var screenLocked = false
     private var lastWake = -100.0
@@ -238,10 +239,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 let frame = TextFieldGuard.focusedTextFrame()
-                if frame != self.typingFrame {
-                    NSLog("Glitch text box: %@ (trusted: %d)", frame.map { NSStringFromRect($0) } ?? "none", AXIsProcessTrusted() ? 1 : 0)
+                if frame != self.typingFrame || TextFieldGuard.lastProblem != self.typingProblem {
+                    NSLog("Glitch text box: %@", frame.map { NSStringFromRect($0) } ?? TextFieldGuard.lastProblem)
                 }
                 self.typingFrame = frame
+                self.typingProblem = TextFieldGuard.lastProblem
             }
         }
 

@@ -6,6 +6,8 @@ import ApplicationServices
 @MainActor
 enum TextFieldGuard {
     private static var awakenedPID: pid_t = 0
+    /// Why the last lookup found no text box, for the log; empty when it found one.
+    private(set) static var lastProblem = ""
 
     /// Shows macOS' own "allow Accessibility" prompt if the permission is missing.
     static func askForPermission() {
@@ -14,23 +16,48 @@ enum TextFieldGuard {
 
     /// Frame of the focused text input in Cocoa screen coordinates (origin bottom-left), or nil.
     static func focusedTextFrame() -> CGRect? {
-        guard AXIsProcessTrusted(), let app = NSWorkspace.shared.frontmostApplication,
-              app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
+        guard AXIsProcessTrusted() else { return miss("not trusted") }
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return miss("no other app in front") }
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
         if awakenedPID != app.processIdentifier {
             // Chromium/Electron apps only expose their text fields once an assistive app asks for them
             AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, kCFBooleanTrue)
             awakenedPID = app.processIdentifier
         }
+        let name = app.bundleIdentifier ?? "?"
         var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
+        var result = AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focused)
+        if result != .success {
+            // some apps answer only the system-wide element
+            result = AXUIElementCopyAttributeValue(AXUIElementCreateSystemWide(), kAXFocusedUIElementAttribute as CFString, &focused)
+        }
+        guard result == .success, let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else {
+            awakenedPID = 0   // ask Electron again next time; its renderer may have restarted
+            return miss("\(name): no focused element (AX error \(result.rawValue))")
+        }
         let element = focused as! AXUIElement   // swiftlint:disable:this force_cast
-        guard isTextInput(element), let frame = frame(of: element) else { return nil }
+        guard isTextInput(element) else { return miss("\(name): focused \(describe(element)) is not a text input") }
+        guard let frame = frame(of: element) else { return miss("\(name): \(describe(element)) has no frame") }
         // a whole page or editor reported as one field is too big to dodge
         let screen = NSScreen.screens.first?.frame ?? .zero
-        guard frame.width * frame.height < screen.width * screen.height * 0.35 else { return nil }
+        guard frame.width * frame.height < screen.width * screen.height * 0.35 else {
+            return miss("\(name): \(describe(element)) \(NSStringFromRect(frame)) is too big")
+        }
+        lastProblem = ""
         return frame
+    }
+
+    private static func miss(_ problem: String) -> CGRect? {
+        lastProblem = problem
+        return nil
+    }
+
+    private static func describe(_ element: AXUIElement) -> String {
+        var role: CFTypeRef?, subrole: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
+        AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole)
+        return "\(role as? String ?? "-")/\(subrole as? String ?? "-")"
     }
 
     private static func isTextInput(_ element: AXUIElement) -> Bool {
