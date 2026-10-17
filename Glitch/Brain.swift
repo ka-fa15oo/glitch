@@ -36,16 +36,15 @@ final class Brain {
         }
     }
 
-    /// Permission barrier: the sword held level across the chest like the bar of a gate, one hand on the hilt and
-    /// the other on the blade, feet planted. `k` 0...1.
+    /// Permission wait: the sword held upright in front of the body, point up, both fists stacked on the hilt at chest
+    /// height, the blade passing in front of the face (a knight keeping vigil). `k` 0...1.
     static func applyBarrier(k: Double, to pose: inout Pose) {
-        pose.nearHand = nil
-        pose.grip = lerp(pose.grip, CGPoint(x: 13, y: -12), k)
-        pose.swordRot += (0.75 - pose.swordRot) * k
-        pose.farHand = lerp(Skeleton.handFar, CGPoint(x: 30, y: 47), k)
-        pose.torsoRot += (0.05 - pose.torsoRot) * k
-        pose.shoulderLift += (0.8 - pose.shoulderLift) * k
-        pose.crouch = 0.08 * k
+        pose.nearHand = nil                                    // both hands stay on the hilt
+        pose.grip = lerp(pose.grip, CGPoint(x: -1.5, y: -9), k)
+        pose.swordRot += (2.32 - pose.swordRot) * k            // blade straight up
+        pose.torsoRot += (0.0 - pose.torsoRot) * k
+        pose.shoulderLift += (0.4 - pose.shoulderLift) * k
+        pose.headDY += 0.4 * k
     }
 
     /// Waiting for an answer: the knight turns its head and eyes towards the viewer, the sword rests low in the hand
