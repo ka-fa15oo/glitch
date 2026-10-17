@@ -195,6 +195,8 @@ final class Brain {
     /// Sprite-space point the user grabbed (set on mouse down), so the body hangs from the cursor.
     var grabPoint = CGPoint(x: 39, y: 20)
     var gravityEnabled = true
+    /// Customize › Hareketlilik: stretches (calm) or shortens (lively) the gaps between idle moves.
+    var restScale = 1.0
     var onSound: ((SoundEffect) -> Void)?
     var mouseTarget: () -> (mouse: CGPoint, center: CGPoint)? = { nil }
     var windowOrigin: () -> CGPoint = { .zero }
@@ -427,7 +429,7 @@ final class Brain {
             if dist <= step {
                 setWindowOrigin(target)
                 walkTarget = nil
-                nextWander = now + .random(in: 12 ... 35)
+                nextWander = now + .random(in: 12 ... 35) * restScale
             } else {
                 let next = CGPoint(x: origin.x + dx / dist * step, y: origin.y + dy / dist * step)
                 if blocked(next), !blocked(origin) {
@@ -541,10 +543,10 @@ final class Brain {
         }
         if now > nextGlitch {
             start(.glitch, at: now)
-            nextGlitch = now + .random(in: 15 ... 40)
+            nextGlitch = now + .random(in: 15 ... 40) * restScale
         } else if walkTarget == nil, now > nextAuto {
             start([.look, .look, .happy, .guard_].randomElement()!, at: now)   // no sword swing on its own for now
-            nextAuto = now + .random(in: 10 ... 25)
+            nextAuto = now + .random(in: 10 ... 25) * restScale
         } else if walkTarget == nil, !mouseNear, now > nextWander {
             beginWalk(at: now)
         }
