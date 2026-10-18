@@ -39,14 +39,19 @@ def app_icon(size):
     return img
 
 
-def menu_icon(px):
-    """Template image: black eyes on transparent; macOS tints it for light and dark menu bars."""
+def menu_icon(px, cells):
+    """Template image: black shapes on transparent; macOS tints it for light and dark menu bars."""
     img = Image.new("RGBA", (240, 240), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     cell = 240 / G
-    for x0 in (3, 14):  # wider than tall, like the eyes on the app icon
-        d.rectangle([x0 * cell, 10 * cell, (x0 + 7) * cell - 1, 14 * cell - 1], fill=(0, 0, 0, 255))
+    for x0, y0, x1, y1 in cells:
+        d.rectangle([x0 * cell, y0 * cell, x1 * cell - 1, y1 * cell - 1], fill=(0, 0, 0, 255))
     return img.resize((px, px), Image.LANCZOS)
+
+
+# the menu bar shows the selected character's eyes
+GLITCH_EYES = [(3, 10, 10, 14), (14, 10, 21, 14)]                       # wide slits, like the app icon
+WIZZY_EYES = [c for cx in (6, 18) for c in ((cx - 1, 8, cx + 1, 16), (cx - 4, 11, cx + 4, 13))]   # two star points
 
 
 def write(folder, images, contents):
@@ -70,16 +75,17 @@ for pt in (16, 32, 128, 256, 512):
         entries.append({"idiom": "mac", "size": f"{pt}x{pt}", "scale": f"{scale}x", "filename": name})
 write("AppIcon.appiconset", icons, {"images": entries, "info": {"author": "xcode", "version": 1}})
 
-write("MenuBarIcon.imageset", [("menubar.png", menu_icon(18)), ("menubar@2x.png", menu_icon(36))], {
-    "images": [{"idiom": "universal", "scale": "1x", "filename": "menubar.png"},
-               {"idiom": "universal", "scale": "2x", "filename": "menubar@2x.png"}],
-    "info": {"author": "xcode", "version": 1},
-    "properties": {"template-rendering-intent": "template"},
-})
+for folder, cells in (("MenuBarIcon.imageset", GLITCH_EYES), ("MenuBarIconWizzy.imageset", WIZZY_EYES)):
+    write(folder, [("menubar.png", menu_icon(18, cells)), ("menubar@2x.png", menu_icon(36, cells))], {
+        "images": [{"idiom": "universal", "scale": "1x", "filename": "menubar.png"},
+                   {"idiom": "universal", "scale": "2x", "filename": "menubar@2x.png"}],
+        "info": {"author": "xcode", "version": 1},
+        "properties": {"template-rendering-intent": "template"},
+    })
 
 # self-check: every icon slot exists at the pixel size it claims
 for e in entries:
     pt, scale = int(e["size"].split("x")[0]), int(e["scale"][0])
     with Image.open(os.path.join(ASSETS, "AppIcon.appiconset", e["filename"])) as im:
         assert im.size == (pt * scale, pt * scale), e
-print("ok:", len(entries), "app icon sizes + menu bar icon")
+print("ok:", len(entries), "app icon sizes + menu bar icons for Glitch and Wizzy")

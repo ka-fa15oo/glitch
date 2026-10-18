@@ -5,6 +5,7 @@ import SwiftUI
 struct WelcomeView: View {
     @Environment(\.dismissWindow) private var dismissWindow
     @AppStorage(Prefs.welcomed) private var welcomed = false
+    @AppStorage(Prefs.character) private var character = "glitch"
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
     @State private var sentinelInstalled = HookSetup.isInstalled
 
@@ -22,6 +23,13 @@ struct WelcomeView: View {
             }
 
             Form {
+                Section("Choose your companion") {
+                    HStack(spacing: 12) {
+                        ForEach(CharacterInfo.all.filter(\.available)) { info in
+                            CharacterCard(info: info, selected: character == info.id) { character = info.id }
+                        }
+                    }
+                }
                 Toggle("Open at login", isOn: $openAtLogin)
                     .onChange(of: openAtLogin) { _, on in setOpenAtLogin(on) }
 
@@ -71,6 +79,29 @@ struct WelcomeView: View {
         .padding(24)
         .frame(width: 520)
         .onAppear { NSApp.activate() }   // an accessory app's window otherwise opens behind the frontmost app
+    }
+
+    /// One selectable character: name and theme; the chosen one gets the accent outline.
+    private struct CharacterCard: View {
+        let info: CharacterInfo
+        let selected: Bool
+        let choose: () -> Void
+
+        var body: some View {
+            Button(action: choose) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(info.name).fontWeight(.semibold)
+                    Text(info.theme).font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(.quaternary.opacity(selected ? 1 : 0.4), in: .rect(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(selected ? Color.accentColor : .clear, lineWidth: 2))
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(selected ? .isSelected : [])
+        }
     }
 
     private func setOpenAtLogin(_ on: Bool) {

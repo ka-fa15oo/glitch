@@ -10,7 +10,7 @@ struct GlitchApp: App {
     init() { Prefs.register() }
 
     var body: some Scene {
-        MenuBarExtra("Glitch", image: "MenuBarIcon") {
+        MenuBarExtra {
             SettingsButtons()
             Divider()
             LoginToggle()
@@ -24,6 +24,8 @@ struct GlitchApp: App {
             }
             Button("Quit") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
+        } label: {
+            MenuBarEyes()
         }
         Window("Glitch Settings", id: "settings") {
             SettingsView()
@@ -35,6 +37,16 @@ struct GlitchApp: App {
         }
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(Prefs.d.bool(forKey: Prefs.welcomed) ? .suppressed : .presented)
+    }
+}
+
+/// The menu bar icon shows the selected character's eyes.
+private struct MenuBarEyes: View {
+    @AppStorage(Prefs.character) private var character = "glitch"
+
+    var body: some View {
+        Image(character == Mage.id ? "MenuBarIconWizzy" : "MenuBarIcon")
+            .accessibilityLabel("Glitch")
     }
 }
 
