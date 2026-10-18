@@ -64,10 +64,13 @@ struct RobotView: View {
         .frame(width: Self.canvasSize.width, height: Self.canvasSize.height)
         .overlay(alignment: .topLeading) {
             if pose.showQuit {
-                Text("†")
-                    .font(.system(size: 17, weight: .bold, design: .serif))
-                    .foregroundStyle(Color(red: 0.93, green: 0.35, blue: 0.35))
-                    .shadow(color: Color(red: 0.1, green: 0.0, blue: 0.02), radius: 0, x: 1, y: 1)
+                // the grave-cross is the knight's; Wizzy shows a crescent moon in his staff star's gold
+                let mage = Mage.isSelected
+                Text(mage ? "☾" : "†")
+                    .font(.system(size: mage ? 18 : 17, weight: .bold, design: .serif))
+                    .foregroundStyle(mage ? Color(red: 0.94, green: 0.85, blue: 0.56) : Color(red: 0.93, green: 0.35, blue: 0.35))
+                    .shadow(color: mage ? Color(red: 0.02, green: 0.03, blue: 0.1) : Color(red: 0.1, green: 0.0, blue: 0.02),
+                            radius: 0, x: 1, y: 1)
                     .frame(width: Self.quitRect.width, height: Self.quitRect.height)
                     .offset(x: Self.quitRect.minX, y: Self.quitRect.minY)
                     .allowsHitTesting(false)
