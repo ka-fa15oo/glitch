@@ -205,6 +205,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return screen.visibleFrame.minY - CGFloat(RobotView.padBottom) * RobotView.scale
         }
         applyPrefs()
+        NotificationCenter.default.addObserver(forName: Prefs.switchCharacter, object: nil, queue: .main) { [weak self] note in
+            guard let id = note.object as? String else { return }
+            MainActor.assumeIsolated { self?.switchCharacter(to: id) }
+        }
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.applyPrefs() }
         }
@@ -389,6 +393,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Plays the arrival at most once every 20 s; waking, unlocking and un-hiding often come in bursts.
+    private var switchingCharacter = false
+
+    /// Customize › Apply: the current character leaves with its own goodbye, then the new one arrives its own way.
+    private func switchCharacter(to id: String) {
+        guard !switchingCharacter, id != Prefs.d.string(forKey: Prefs.character) else { return }
+        guard let window, window.isVisible else { Prefs.d.set(id, forKey: Prefs.character); return }
+        switchingCharacter = true
+        brain.start(.farewell)
+        DispatchQueue.main.asyncAfter(deadline: .now() + brain.farewellLength) { [weak self] in
+            guard let self else { return }
+            Prefs.d.set(id, forKey: Prefs.character)
+            lastWake = CACurrentMediaTime()
+            brain.start(.wake)
+            switchingCharacter = false
+        }
+    }
+
     private func wakeUp() {
         let now = CACurrentMediaTime()
         guard now - lastWake > 20 else { return }

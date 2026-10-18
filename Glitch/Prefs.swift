@@ -24,7 +24,12 @@ enum Prefs {
 
     static var d: UserDefaults { .standard }
 
-    static let customizeKeys = [character, scale, hue, liveliness, gravity, hideInFullscreen]
+    /// Reset leaves the character alone: changing it is an animated switch, done with Apply.
+    static let customizeKeys = [scale, hue, liveliness, gravity, hideInFullscreen]
+
+    /// Asks the app to switch characters: the current one says goodbye, then the new one makes its entrance.
+    static let switchCharacter = Notification.Name("switchCharacter")
+    static func requestCharacter(_ id: String) { NotificationCenter.default.post(name: switchCharacter, object: id) }
     static var soundKeys: [String] { [volume, muted] + SoundGroup.allCases.map(\.key) }
 
     /// Back to the registered defaults: removing a key makes UserDefaults fall back to them.

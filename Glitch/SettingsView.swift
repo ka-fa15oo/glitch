@@ -3,6 +3,9 @@ import SwiftUI
 /// The Customize and Sound window opened from the menu bar.
 struct SettingsView: View {
     @AppStorage(Prefs.settingsTab) private var tab = "customize"
+    @AppStorage(Prefs.character) private var character = "glitch"
+    /// The character picked in the list but not applied yet.
+    @State private var picked: String?
 
     var body: some View {
         // a plain segmented switcher instead of TabView, whose tabs end up in the title bar on recent macOS
@@ -16,12 +19,20 @@ struct SettingsView: View {
             .fixedSize()
             .padding(.top, 14)
 
-            if tab == "sound" { SoundTab() } else { CustomizeTab() }
+            if tab == "sound" { SoundTab() } else { CustomizeTab(picked: $picked) }
 
             HStack {
-                Spacer()
                 Button("Reset to Defaults") {
                     Prefs.reset(tab == "sound" ? Prefs.soundKeys : Prefs.customizeKeys)
+                }
+                Spacer()
+                if tab == "customize" {
+                    Button("Apply") {
+                        if let picked { Prefs.requestCharacter(picked) }
+                        picked = nil
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(picked == nil || picked == character)
                 }
             }
             .padding([.horizontal, .bottom], 20)
@@ -31,6 +42,7 @@ struct SettingsView: View {
 }
 
 private struct CustomizeTab: View {
+    @Binding var picked: String?
     @AppStorage(Prefs.character) private var character = "glitch"
     @AppStorage(Prefs.scale) private var scale = 2.0
     @AppStorage(Prefs.hue) private var hue = 0.0
@@ -53,7 +65,7 @@ private struct CustomizeTab: View {
                 Section("Character") {
                     ForEach(CharacterInfo.all) { info in
                         Button {
-                            character = info.id
+                            picked = info.id
                         } label: {
                             HStack {
                                 VStack(alignment: .leading) {
@@ -61,7 +73,7 @@ private struct CustomizeTab: View {
                                     Text(info.theme).font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                if character == info.id { Image(systemName: "checkmark") }
+                                if (picked ?? character) == info.id { Image(systemName: "checkmark") }
                                 if !info.available { Image(systemName: "lock") }
                             }
                             .contentShape(.rect)

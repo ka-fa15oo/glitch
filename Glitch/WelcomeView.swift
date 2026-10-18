@@ -6,6 +6,7 @@ struct WelcomeView: View {
     @Environment(\.dismissWindow) private var dismissWindow
     @AppStorage(Prefs.welcomed) private var welcomed = false
     @AppStorage(Prefs.character) private var character = "glitch"
+    @State private var picked: String?   // applied with Start, so the switch plays its goodbye and entrance
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
     @State private var sentinelInstalled = HookSetup.isInstalled
 
@@ -26,7 +27,7 @@ struct WelcomeView: View {
                 Section("Choose your companion") {
                     HStack(spacing: 12) {
                         ForEach(CharacterInfo.all.filter(\.available)) { info in
-                            CharacterCard(info: info, selected: character == info.id) { character = info.id }
+                            CharacterCard(info: info, selected: (picked ?? character) == info.id) { picked = info.id }
                         }
                     }
                 }
@@ -70,6 +71,7 @@ struct WelcomeView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button("Start") {
+                    if let picked, picked != character { Prefs.requestCharacter(picked) }
                     welcomed = true
                     dismissWindow(id: "welcome")
                 }
