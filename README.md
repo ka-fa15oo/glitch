@@ -1,20 +1,20 @@
 # Glitch
 
-**A pixel ghost-knight that lives on your Mac desktop and keeps watch over your Claude Code sessions.**
+**A desktop companion for macOS that keeps watch over your Claude Code sessions.**
 
-Glitch is a native SwiftUI desktop pet for macOS. He stands guard quietly at the bottom of your screen. When one of your Claude Code sessions needs you, he shows it with his sword, not with a popup.
+Glitch is a native SwiftUI desktop pet app for macOS. Its companion **Vorn**, a pixel ghost-knight, stands guard quietly at the bottom of your screen. When one of your Claude Code sessions needs you, he shows it with his sword, not with a popup. You can also pick **Wizzy**, a cosmic mage who answers with runes, a crystal ball and falling stars.
 
 <p align="center">
-  <img src="docs/images/idle.png" width="180" alt="Glitch standing guard">
-  <img src="docs/images/permission.png" width="180" alt="Glitch keeping vigil: a session is waiting for permission">
-  <img src="docs/images/question.png" width="180" alt="Glitch turning to you: a session asked a question">
+  <img src="docs/images/idle.png" width="180" alt="Vorn standing guard">
+  <img src="docs/images/permission.png" width="180" alt="Vorn keeping vigil: a session is waiting for permission">
+  <img src="docs/images/question.png" width="180" alt="Vorn turning to you: a session asked a question">
 </p>
 
 ## The sentinel
 
 If you run several Claude Code sessions at once, it's easy to miss the one waiting for you. Glitch watches **every** Claude Code session on your Mac, in the desktop app and in the terminal, in any project:
 
-| A session… | Glitch… | Spark |
+| A session… | Vorn… | Spark |
 |---|---|---|
 | needs your **permission** | keeps vigil, sword upright | crimson |
 | **asked you a question** | turns to look at you | crimson |
@@ -22,7 +22,7 @@ If you run several Claude Code sessions at once, it's easy to miss the one waiti
 | **crashed** (API error) | lets the sword slip and catches it | — |
 
 - **One spark per session.** Crimson means "waiting for you", gold means "done, come and look".
-- **Hover** over Glitch to see the list (project · session · state · how long).
+- **Hover** over your companion to see the list (project · session · state · how long).
 - **Click** to open the most urgent session. Desktop sessions open directly; terminal sessions bring your terminal forward.
 - **Calm by design.** He only reacts when something actually happens. If a permission request goes unanswered for 5 minutes he reminds you once, then waits again.
 - **Choose which projects count** under *Watched projects* in the menu.
