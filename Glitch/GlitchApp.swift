@@ -420,14 +420,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !farewellDone else { return }
         farewellDone = true
         brain.start(.farewell)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.8) { NSApp.terminate(nil) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + brain.farewellLength) { NSApp.terminate(nil) }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if farewellDone || window == nil || !(window?.isVisible ?? false) { return .terminateNow }
         farewellDone = true
         brain.start(.farewell)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.8) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + brain.farewellLength) {
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
@@ -541,6 +541,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch mood[..<colon] {
                 case "rune": pose.rune = e
                 case "nudge": pose.rune = 3; pose.nudge = e
+                case "vortex": pose.vortex = e
+                case "glide": pose.hang = 0.3; pose.stepAmount = 0.9
                 case "orb": pose.orb = e
                 case "feast": pose.feast = e; pose.goldSparks = 2; if e > 0.3, e < 2.2 { pose.eyes = .happy }
                 case "misfire": pose.misfire = e; if e < 0.5 { pose.eyes = .wide }
@@ -548,7 +550,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
-        let view = mood.hasPrefix("streak")
+        let view = mood.hasPrefix("road:")
+            ? AnyView(MageCosmos.RoadView(road: MageCosmos.Road(p0: CGPoint(x: 560, y: -10), p1: CGPoint(x: 150, y: 110), p2: CGPoint(x: 600, y: 300), p3: CGPoint(x: 300, y: 470)),
+                                          fixedAge: Double(mood.dropFirst(5)) ?? 0.5)
+                .frame(width: 700, height: 500).background(Color(red: 0.09, green: 0.08, blue: 0.14)))
+            : mood.hasPrefix("hole:")
+            ? AnyView(MageCosmos.HoleView(center: CGPoint(x: 350, y: 250), fixedAge: Double(mood.dropFirst(5)) ?? 1.5)
+                .frame(width: 700, height: 500).background(Color(red: 0.09, green: 0.08, blue: 0.14)))
+            : mood.hasPrefix("streak")
             ? AnyView(Mage.ShootingStar(start: CGPoint(x: 560, y: 260), facingRight: false, unit: 2,
                                         fixedAge: Double(mood.dropFirst(6)) ?? 0.5)
                 .frame(width: 600, height: 300).background(Color(red: 0.11, green: 0.11, blue: 0.13)))

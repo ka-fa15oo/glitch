@@ -226,6 +226,7 @@ final class Brain {
         var redSparks = 0       // shoulder sparks: waiting for the user
         var goldSparks = 0      // shoulder sparks: finished sessions
         var splashAge = -1.0    // seconds since the landing splash began; < 0 = none
+        var vortex = 0.0        // 0...1 how far Wizzy has been pulled into the black hole (it shrinks and spins)
         var wind = 0.0          // 0...1 gale blowing the cape to one side (arrival and goodbye)
         var squash = 0.0        // 0...1 impact squash
         var falling = false
@@ -266,7 +267,10 @@ final class Brain {
     private var action: (kind: Action, start: Double)?
     private var quitUntil = 0.0
     private var appearStart: Double?
-    private struct Landing { var impact: Double?; var vy = 0.0; var x: Double }
+    private struct Glide { var start: Double; var road: MageCosmos.Road }       // Wizzy's arrival along a road of stars
+    private struct Landing { var impact: Double?; var vy = 0.0; var x: Double; var glide: Glide?; var chimed = false }
+    private struct Hole { var start: Double; var from: CGPoint; var target: CGPoint }   // Wizzy's goodbye into a black hole
+    private var hole: Hole?
     var sentinelHold = SentinelHold.none      // set by the sentinel (Brain+Sentinel API below)
     private var holdSince = 0.0
     private var remindStart = -10.0
@@ -356,7 +360,8 @@ final class Brain {
 
     func start(_ kind: Action, at now: Double = CACurrentMediaTime(), silent: Bool = false) {
         action = (kind, now)
-        if kind == .wake, !beginLanding() { appearStart = now; action = (.wake, now + 2.4) }   // no room to fall: arrive inside the blood
+        if kind == .farewell, Mage.isSelected { beginBlackHole(at: now) }
+        if kind == .wake, !beginLanding(at: now) { appearStart = now; action = (.wake, now + 2.4) }   // no room to fall: arrive inside the blood
         if kind == .finished || kind == .fumble || kind == .flourish { finishedStage = 0 }
         if kind == .guard_ { guardKind = Guard.allCases.randomElement()! }
         walkTarget = nil
@@ -364,9 +369,10 @@ final class Brain {
     }
 
     /// Puts the window above the screen, over the middle third of its width; `update` drops it from there.
-    private func beginLanding() -> Bool {
+    private func beginLanding(at now: Double) -> Bool {
         let bounds = walkBounds()
         guard gravityEnabled, bounds.width > 10, bounds.height > 10 else { return false }
+        if Mage.isSelected { return beginStarGlide(bounds: bounds, at: now) }
         let x = bounds.minX + bounds.width * .random(in: 1.0 / 3 ... 2.0 / 3)
         setWindowOrigin(CGPoint(x: x, y: bounds.maxY + 270))   // 270 pt = more than the window height
         landing = Landing(x: x)
@@ -375,8 +381,65 @@ final class Brain {
         return true
     }
 
+    /// Wizzy does not fall: it draws a road through the stars from above the screen and glides down it.
+    private func beginStarGlide(bounds: CGRect, at now: Double) -> Bool {
+        let tx = bounds.minX + bounds.width * .random(in: 1.0 / 3 ... 2.0 / 3)
+        let ty = groundY(), top = bounds.maxY + 270
+        let side: CGFloat = Bool.random() ? 1 : -1
+        let sx = min(bounds.maxX, max(bounds.minX, tx + side * .random(in: 220 ... 420)))
+        let span = top - ty
+        let road = MageCosmos.Road(p0: CGPoint(x: sx, y: top), p1: CGPoint(x: tx - side * 260, y: ty + span * 0.66),
+                                   p2: CGPoint(x: tx + side * 300, y: ty + span * 0.30), p3: CGPoint(x: tx, y: ty))
+        setWindowOrigin(road.p0)
+        landing = Landing(x: tx, glide: Glide(start: now, road: road))
+        action = nil
+        drop = .none
+        // the overlay draws the road through the middle of the pet window
+        let mid = CGPoint(x: 124, y: 108)
+        func shifted(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x + mid.x, y: p.y + mid.y) }
+        MageCosmos.openStarRoad(MageCosmos.Road(p0: shifted(road.p0), p1: shifted(road.p1), p2: shifted(road.p2), p3: shifted(road.p3)))
+        onSound?(.starGlide)
+        return true
+    }
+
+    /// Goodbye: a black hole opens beside Wizzy and it spirals into it, shrinking as it goes.
+    private func beginBlackHole(at now: Double) {
+        let bounds = walkBounds()
+        let o = windowOrigin()
+        let dx: CGFloat = o.x + 170 <= bounds.maxX ? 170 : -170                   // towards the inside of the screen
+        let target = CGPoint(x: min(bounds.maxX, max(bounds.minX, o.x + dx)), y: o.y + 6)
+        hole = Hole(start: now, from: o, target: target)
+        MageCosmos.openBlackHole(at: CGPoint(x: target.x + 124, y: target.y + 108), length: farewellLength)
+        onSound?(.hole)
+    }
+
+    /// How long the goodbye takes before the app quits.
+    var farewellLength: Double { Mage.isSelected ? 3.7 : 4.8 }
+
+    private func holeProgress(_ h: Hole, now: Double) -> Double { pow(ease((now - h.start - 0.8) / 1.8), 1.25) }
+
+    private func stepBlackHole(now: Double) {
+        guard let h = hole else { return }
+        if now - h.start > farewellLength + 0.4 { hole = nil; setWindowOrigin(h.from); return }   // the goodbye was cancelled
+        let k = holeProgress(h, now: now)
+        let v = CGPoint(x: h.from.x - h.target.x, y: h.from.y - h.target.y)
+        let phi = -2.3 * Double.pi * k
+        let c = CGFloat(cos(phi)), s = CGFloat(sin(phi))
+        setWindowOrigin(CGPoint(x: h.target.x + (v.x * c - v.y * s) * (1 - CGFloat(k)),
+                                y: h.target.y + (v.x * s + v.y * c) * (1 - CGFloat(k))))
+    }
+
     private func stepLanding(dt: Double, now: Double) {
         guard var l = landing else { return }
+        if let g = l.glide {
+            let e = now - g.start
+            let u = MageCosmos.glideProgress(e)
+            setWindowOrigin(g.road.point(u))
+            if u >= 1, !l.chimed { l.chimed = true; onSound?(.chime) }
+            if e > MageCosmos.glideStart + MageCosmos.glideDuration + 0.8 { landing = nil; nextAuto = now + .random(in: 6 ... 12); return }
+            landing = l
+            return
+        }
         if let impact = l.impact {
             if now - impact > 2.7 { landing = nil; nextAuto = now + .random(in: 6 ... 12); return }
         } else {
@@ -409,7 +472,16 @@ final class Brain {
         }
     }
 
+    private func applyStarGlide(_ g: Glide, now: Double, to pose: inout Pose) {
+        let u = MageCosmos.glideProgress(now - g.start)
+        let moving = 4 * u * (1 - u)                                  // 0 at either end, 1 in mid-glide
+        pose.hang = 0.4 * Double(g.road.tangent(u).x) * moving         // leans into the way it is going
+        pose.stepAmount = 0.9 * moving                                // the robe streams behind
+        pose.headDY -= 0.5 * moving
+    }
+
     private func applyLanding(_ l: Landing, now: Double, to pose: inout Pose) {
+        if let g = l.glide { applyStarGlide(g, now: now, to: &pose); return }
         Self.applyStance(.planted, to: &pose)       // diving sword-first
         guard let impact = l.impact else { pose.falling = true; return }
         let e = now - impact
@@ -486,9 +558,10 @@ final class Brain {
 
         let dropping: Bool
         if case .none = drop { dropping = false } else { dropping = true }
-        if !dropping, landing == nil, teleport == nil { schedule(now) }
+        if !dropping, landing == nil, teleport == nil, hole == nil { schedule(now) }
         stepFall(dt: dt, now: now)
         stepLanding(dt: dt, now: now)
+        stepBlackHole(now: now)
 
         if walkTarget == nil { teleportAt = nil }
         if let at = teleportAt, now >= at, let target = walkTarget {
@@ -576,7 +649,8 @@ final class Brain {
             if appeared < 2.5 { pose.cocoonAge = appeared; pose.reveal = ease((appeared - 0.55) / 0.9) } else { appearStart = nil }
         }
         // goodbye: after the kneel a blood storm whirls round it, swallows it and dies down where it stands
-        if let a = action, a.kind == .farewell, now - a.start > 1.8 {
+        if let h = hole { pose.vortex = holeProgress(h, now: now) }
+        if let a = action, a.kind == .farewell, !Mage.isSelected, now - a.start > 1.8 {
             let e = now - a.start
             pose.cocoonAge = e - 1.8                       // the blood storm rises the moment the knee touches down
             pose.cocoonHold = true

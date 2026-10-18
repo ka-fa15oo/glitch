@@ -57,7 +57,7 @@ enum SoundGroup: String, CaseIterable {
         case .tick, .thud: self = .movement
         case .glitch: self = .glitch
         case .swish, .clang, .scrape: self = .sword
-        case .chime, .nudge, .rune, .orb, .fizzle: self = .spells
+        case .chime, .nudge, .rune, .orb, .fizzle, .starGlide, .hole: self = .spells
         }
     }
 

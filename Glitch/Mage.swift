@@ -21,8 +21,20 @@ enum Mage {
 
     static func draw(_ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose) {
         var layer = outer
-        layer.opacity = max(0, min(1, pose.reveal * dustReveal(pose.dust)))
-        layer.drawLayer { inner in drawBody(inner, unit: unit, size: size, t: t, pose: pose) }
+        layer.opacity = max(0, min(1, pose.reveal * dustReveal(pose.dust) * (1 - pow(pose.vortex, 3))))
+        layer.drawLayer { inner in
+            var inner = inner
+            if pose.vortex > 0.001 {
+                // being pulled into the black hole: it turns about its middle and shrinks to nothing
+                let c = CGPoint(x: 40 * unit, y: 56 * unit)
+                inner.translateBy(x: c.x, y: c.y)
+                inner.rotate(by: .radians(pose.vortex * 4.5 * .pi))
+                let s = 1 - 0.95 * pose.vortex * pose.vortex
+                inner.scaleBy(x: s, y: s * (1 + 0.4 * pose.vortex))      // a little stretched as it goes in
+                inner.translateBy(x: -c.x, y: -c.y)
+            }
+            drawBody(inner, unit: unit, size: size, t: t, pose: pose)
+        }
         if pose.dust >= 0 { drawDust(outer, unit: unit, e: pose.dust) }
     }
 

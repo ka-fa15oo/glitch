@@ -3,6 +3,7 @@ import AVFoundation
 enum SoundEffect {
     case wake, farewell, sad, glitch, swish, angry, happy, surprised, tick, thud, clang, scrape
     case chime, nudge, rune, orb, fizzle   // Wizzy's spells
+    case starGlide, hole                   // Wizzy's arrival along the star road and its black hole goodbye
 }
 
 /// Tiny synthesizer: every effect is generated in code, so there are no audio assets.
@@ -103,6 +104,13 @@ final class SoundBank {
         case .orb:     // the ball lights up: a small upward shimmer
             [Step(from: 660, to: 990, duration: 0.3, gain: 0.14),
              Step(from: 1320, to: 1320, duration: 0.3, gain: 0.08)]
+        case .starGlide:   // a shimmer sweeping up while the road is drawn, then a soft descending glide
+            [Step(from: 520, to: 1900, duration: 0.8, gain: 0.1),
+             Step(from: 1900, to: 700, duration: 1.1, gain: 0.08)]
+        case .hole:        // a low swirl that sinks away
+            [Step(from: 140, to: 70, duration: 1.2, gain: 0.22),
+             Step(from: 0, to: 0, duration: 0.9, wave: .noise, gain: 0.09),
+             Step(from: 70, to: 38, duration: 1.0, gain: 0.26)]
         case .fizzle:  // the spell misfires: a sputter and a sinking buzz
             [Step(from: 0, to: 0, duration: 0.09, wave: .noise, gain: 0.3, crush: true),
              Step(from: 240, to: 90, duration: 0.25, wave: .square, gain: 0.14, crush: true),
