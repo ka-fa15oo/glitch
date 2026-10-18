@@ -103,6 +103,9 @@ final class Brain {
         pose.crouch = st.crouch
         pose.shoulderLift = st.lift
         pose.flourishAge = e
+        // the cape streams the other way from the body's lunge and ripples with it (the same cloth motion as being dragged)
+        let velocity = (st.dx - flourishState(e: e - 0.05).dx) / 0.05
+        pose.fling = max(-1, min(1, velocity / 30))
         if e >= 1.0, e < 1.6 { pose.waveAge = e - 1.0 }                    // the slash wave leaves the blade
         if e >= 1.1, e < 2.0 { pose.scrapeAge = e - 1.1 }                  // sparks where the point lands
         if e >= 1.1 { pose.shakeX = sin(e * 90) * 1.2 * exp(-(e - 1.1) * 12) }
