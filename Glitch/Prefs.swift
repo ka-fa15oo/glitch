@@ -44,7 +44,7 @@ enum SoundGroup: String, CaseIterable {
         case .arrival: "Wake and goodbye"
         case .reactions: "Reactions (click, drag)"
         case .movement: "Steps and falls"
-        case .glitch: "Glitch"
+        case .glitch: "Glitch effect"
         case .sword: "Sword"
         case .spells: "Wizzy's spells"
         }
@@ -73,7 +73,7 @@ struct CharacterInfo: Identifiable {
     let available: Bool
 
     static let all = [
-        CharacterInfo(id: "glitch", name: "Glitch", theme: "Cursed digital knight", available: true),
+        CharacterInfo(id: "glitch", name: "Vorn", theme: "Cursed digital knight", available: true),
         CharacterInfo(id: Mage.id, name: "Wizzy", theme: "Cosmic mage", available: true),
         CharacterInfo(id: "slot3", name: "Character 3", theme: "Coming soon", available: false),
     ]

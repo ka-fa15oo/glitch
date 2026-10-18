@@ -44,7 +44,7 @@ struct WelcomeView: View {
                     }
                 } label: {
                     Text("Keep out of text fields")
-                    Text("Needs Accessibility, so Glitch can step aside while you type.")
+                    Text("Needs Accessibility, so your companion can step aside while you type.")
                 }
 
                 LabeledContent {
