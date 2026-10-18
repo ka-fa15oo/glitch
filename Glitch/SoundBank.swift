@@ -4,6 +4,7 @@ enum SoundEffect {
     case wake, farewell, sad, glitch, swish, angry, happy, surprised, tick, thud, clang, scrape
     case chime, nudge, rune, orb, fizzle   // Wizzy's spells
     case starGlide, hole                   // Wizzy's arrival along the star road and its black hole goodbye
+    case constellation, dustOut, dustIn, shootingStar   // Wizzy's idle and walking spells, and its click
 }
 
 /// Tiny synthesizer: every effect is generated in code, so there are no audio assets.
@@ -111,6 +112,22 @@ final class SoundBank {
             [Step(from: 140, to: 70, duration: 1.2, gain: 0.22),
              Step(from: 0, to: 0, duration: 0.9, wave: .noise, gain: 0.09),
              Step(from: 70, to: 38, duration: 1.0, gain: 0.26)]
+        case .constellation:   // stars set one by one: three faint, high plucks, the first as the first star lands
+            [Step(from: 0, to: 0, duration: 0.5, gain: 0),
+             Step(from: 1760, to: 1760, duration: 0.07, gain: 0.08),
+             Step(from: 0, to: 0, duration: 0.73, gain: 0),
+             Step(from: 2093, to: 2093, duration: 0.07, gain: 0.08),
+             Step(from: 0, to: 0, duration: 0.73, gain: 0),
+             Step(from: 2349, to: 2349, duration: 0.25, gain: 0.07)]
+        case .dustOut:     // scattering into star dust: a soft hiss sweeping up
+            [Step(from: 0, to: 0, duration: 0.55, wave: .noise, gain: 0.1),
+             Step(from: 1400, to: 2600, duration: 0.15, gain: 0.05)]
+        case .dustIn:      // gathering again: a shimmer coming down to rest
+            [Step(from: 2600, to: 1300, duration: 0.5, gain: 0.07),
+             Step(from: 1300, to: 1300, duration: 0.2, gain: 0.04)]
+        case .shootingStar:   // a quick bright streak that fades
+            [Step(from: 1900, to: 3100, duration: 0.12, gain: 0.1),
+             Step(from: 3100, to: 1500, duration: 0.6, gain: 0.07)]
         case .fizzle:  // the spell misfires: a sputter and a sinking buzz
             [Step(from: 0, to: 0, duration: 0.09, wave: .noise, gain: 0.3, crush: true),
              Step(from: 240, to: 90, duration: 0.25, wave: .square, gain: 0.14, crush: true),

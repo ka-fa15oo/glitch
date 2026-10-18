@@ -8,6 +8,11 @@ enum Mage {
 
     private static let set = SpriteSet(prefix: "mage_")
     private static let staff = load("mage_staff")
+    /// Click area: every part at rest, raised by the 2 px it hovers on average.
+    static let hitMask: [Bool] = Sprite.coverage(
+        [set.cape, set.tunic, set.cloak, set.armFarUpper, set.armFarFore, set.armNearUpper, set.armNearFore,
+         set.head, staff].map { ($0, CGPoint(x: 0, y: -2)) })
+    static let hitBounds = Sprite.bounds(of: hitMask)
     private static let shadow = load("mage_shadow")
     private static let neck = CGPoint(x: 40, y: 36)
     /// The far hand that holds the staff; the staff turns about it.
@@ -419,6 +424,12 @@ enum Mage {
         let px = (Double(RobotView.padLeft) + x) * RobotView.scale
         return CGPoint(x: facingRight ? RobotView.canvasSize.width - px : px,
                        y: (Double(RobotView.padTop) + y) * RobotView.scale)
+    }
+
+    /// When the current constellation's first star is set (wall clock, as the view draws it); nil when none is up.
+    static func constellationStart(at t: Double = Date.timeIntervalSinceReferenceDate) -> Double? {
+        let start = (t / Constellation.period).rounded(.down) * Constellation.period
+        return t - start < Constellation.length ? start : nil
     }
 
     @MainActor private static var streak: NSWindow?

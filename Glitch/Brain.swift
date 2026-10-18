@@ -311,6 +311,8 @@ final class Brain {
     private var teleportAt: Double?
     private var teleport: (start: Double, to: CGPoint, moved: Bool)?
     private var castStart: Double?
+    /// Which constellation showing (see Mage) already had its sound.
+    private var heardConstellation = -1.0
     private var feastStart: Double?, misfireStart: Double?
     private var walkPhase = 0.0
     private var walkAmount = 0.0
@@ -522,6 +524,7 @@ final class Brain {
         if Mage.isSelected {
             guard castStart == nil else { return }
             castStart = now
+            onSound?(.shootingStar)
             Mage.shootingStar(windowOrigin: windowOrigin(), facingRight: facingRight)
             return
         }
@@ -556,6 +559,7 @@ final class Brain {
         if walkTarget == nil { teleportAt = nil }
         if let at = teleportAt, now >= at, let target = walkTarget {
             teleport = (now, target, false)
+            onSound?(.dustOut)
             walkTarget = nil
             teleportAt = nil
         }
@@ -656,6 +660,11 @@ final class Brain {
         if let a = action, a.kind == .finished, now - a.start < 2.05 { arriving = 1 }
         if let f = feastStart, now - f < Mage.feastSettles { arriving = 1 }
         pose.goldSparks = max(0, goldSparks - arriving)
+        // the constellation runs on the wall clock in Mage; chime once as its first star is set, if Wizzy is still
+        if Mage.isSelected, let start = Mage.constellationStart(), start != heardConstellation {
+            heardConstellation = start
+            if walkTarget == nil, !carried, !dropping, landing == nil { onSound?(.constellation) }
+        }
         if let c = castStart {
             if now - c > 1.6 { castStart = nil } else { pose.cast = now - c }
         }
@@ -665,7 +674,7 @@ final class Brain {
                 teleport = nil
                 nextWander = now + .random(in: 12 ... 35) * restScale
             } else {
-                if e >= 0.7, !tp.moved { setWindowOrigin(tp.to); teleport?.moved = true }
+                if e >= 0.7, !tp.moved { setWindowOrigin(tp.to); teleport?.moved = true; onSound?(.dustIn) }
                 pose.dust = e
             }
         }
@@ -696,11 +705,13 @@ final class Brain {
             stance = Stance.allCases.filter { $0 != stance }.randomElement()!
             nextStance = now + .random(in: 45 ... 100)
         }
-        if now > nextGlitch {
+        // the digital flicker and the sword guard are the knight's; Wizzy only looks around and smiles
+        if now > nextGlitch, !Mage.isSelected {
             start(.glitch, at: now)
             nextGlitch = now + .random(in: 15 ... 40) * restScale
         } else if walkTarget == nil, now > nextAuto {
-            start([.look, .look, .happy, .guard_].randomElement()!, at: now)   // no sword swing on its own for now
+            let moves: [Action] = Mage.isSelected ? [.look, .look, .happy] : [.look, .look, .happy, .guard_]
+            start(moves.randomElement()!, at: now)   // no sword swing on its own for now
             nextAuto = now + .random(in: 10 ... 25) * restScale
         } else if walkTarget == nil, !mouseNear, now > nextWander {
             beginWalk(at: now)
