@@ -114,6 +114,17 @@ enum Mage {
             staffMove.angle += castAngle * k
             staffMove.lift += castLift * k
         }
+        // finished: the staff goes up for the spell; error: it jerks back as the spell misfires
+        if pose.feast >= 0 {
+            let k = ease(pose.feast / 0.3) * (1 - ease((pose.feast - 1.6) / 0.5))
+            staffMove.angle += castAngle * k
+            staffMove.lift += castLift * k
+        }
+        if pose.misfire >= 0 {
+            let k = ease(pose.misfire / 0.08) * (1 - ease((pose.misfire - 0.15) / 0.45))
+            staffMove.angle += 0.22 * k
+            staffMove.lift += 2 * k
+        }
         if let sky, calm > 0.01 {
             var c = base
             c.opacity = calm
@@ -136,6 +147,176 @@ enum Mage {
         }
         put(set.armNearUpper, ctx, dy: breath * 0.5)
         put(set.armNearFore, ctx, dy: breath * 0.5)
+
+        // sentinel overlays, all following the floating body
+        var tip = Self.staffTip(angle: staffMove.angle * calm, lift: staffLift)
+        tip.x += bx; tip.y += by + breath * 0.3
+        let marks = Marks(unit: unit)
+        if pose.rune >= 0 { marks.rune(ctx, at: CGPoint(x: bx + 6, y: by + 38 + sin(t * 2.2) * 1.2), age: pose.rune, nudge: pose.nudge, t: t) }
+        if pose.orb >= 0 { marks.orb(ctx, at: CGPoint(x: bx + 52, y: by + 53 + breath * 0.5), age: pose.orb, t: t) }
+        if pose.feast >= 0 { marks.feast(ctx, from: tip, e: pose.feast, landing: Self.sparkSlot(pose.redSparks + pose.goldSparks, tip: tip)) }
+        if pose.misfire >= 0 { marks.misfire(ctx, from: tip, e: pose.misfire) }
+        marks.counters(ctx, around: tip, red: pose.redSparks, gold: pose.goldSparks, t: t)
+    }
+
+    /// The finished spell runs this long; its gold star lands among the counters at `feastSettles`.
+    static let feastLength = 3.2, feastSettles = 2.0, misfireLength = 1.4
+
+    /// The staff's star tip for a staff turned by `angle` about the hand and raised by `lift` (sprite px).
+    private static func staffTip(angle: Double, lift: Double) -> CGPoint {
+        let r = CGPoint(x: Constellation.tip.x - hand.x, y: Constellation.tip.y - hand.y)
+        return CGPoint(x: hand.x + r.x * cos(angle) - r.y * sin(angle), y: hand.y + r.x * sin(angle) + r.y * cos(angle) + lift)
+    }
+
+    /// Where the `i`-th waiting/finished star sits: a small arc above the staff tip, wrapping to a second row.
+    private static func sparkSlot(_ i: Int, tip: CGPoint) -> CGPoint {
+        let row = i / 7, k = Double(i % 7)
+        let a = -.pi * (0.92 - k * 0.14), r = 7.0 + Double(row) * 4
+        return CGPoint(x: (tip.x + cos(a) * r).rounded(), y: (tip.y + 1 + sin(a) * r).rounded())
+    }
+
+    /// Pixel drawings for the sentinel: the permission rune, the crystal ball, the finished star feast,
+    /// the misfire puff and the red/gold counter stars.
+    private struct Marks {
+        let unit: CGFloat
+        static let red = Color(red: 0.95, green: 0.28, blue: 0.27), redDim = Color(red: 0.42, green: 0.06, blue: 0.1)
+        static let gold = Color(red: 0.96, green: 0.82, blue: 0.43), goldDim = Color(red: 0.52, green: 0.38, blue: 0.12)
+        static let pink = Color(red: 0.92, green: 0.5, blue: 0.8), violet = Color(red: 0.46, green: 0.25, blue: 0.64)
+        static let smoke = Color(red: 0.5, green: 0.5, blue: 0.56)
+        /// A small rune, drawn as strings of pixels (# = lit).
+        static let glyph = ["....#....", "...###...", "..#.#.#..", ".#..#..#.", "....#....",
+                            "....#....", "...#.#...", "..#...#..", ".#.....#.", "#.......#"]
+
+        func px(_ p: inout Path, _ x: Double, _ y: Double, _ size: Double = 1) {
+            p.addRect(CGRect(x: x.rounded() * unit, y: y.rounded() * unit, width: size * unit, height: size * unit))
+        }
+
+        /// Permission: a red rune hangs in the air in front of Wizzy, pulsing slowly; a reminder flares it once.
+        func rune(_ c: GraphicsContext, at center: CGPoint, age: Double, nudge: Double, t: Double) {
+            var core = Path(), glow = Path()
+            let x0 = center.x - 4, y0 = center.y - 5
+            for (y, line) in Self.glyph.enumerated() {
+                for (x, ch) in line.enumerated() where ch == "#" {
+                    px(&core, x0 + Double(x), y0 + Double(y))
+                    for (ox, oy) in [(-1.0, 0.0), (1, 0), (0, -1), (0, 1)] { px(&glow, x0 + Double(x) + ox, y0 + Double(y) + oy) }
+                }
+            }
+            let flare = nudge >= 0 ? sin(.pi * min(1, nudge / 0.8)) : 0
+            var c = c
+            c.opacity *= ease(age / 0.6) * (0.75 + 0.25 * sin(t * 2.6)) + flare * 0.3
+            var halo = c
+            halo.opacity *= 0.55 + 0.45 * flare
+            halo.fill(glow, with: .color(Self.redDim))
+            c.fill(core, with: .color(Self.red))
+            if flare > 0.05 {                                       // the reminder: a ring of sparks bursts out once
+                var ring = Path()
+                let r = 6 + 6 * min(1, nudge / 0.8)
+                for i in 0 ..< 10 { let a = Double(i) / 10 * 2 * .pi; px(&ring, center.x + cos(a) * r, center.y + sin(a) * r) }
+                var rc = c
+                rc.opacity = flare
+                rc.fill(ring, with: .color(Self.red))
+            }
+        }
+
+        /// Question: a small crystal ball glows above the near hand, a spark circling inside it.
+        func orb(_ c: GraphicsContext, at center: CGPoint, age: Double, t: Double) {
+            var body = Path(), rim = Path(), halo = Path(), core = Path(), glint = Path()
+            for y in -6 ... 6 { for x in -6 ... 6 {
+                let d = Double(x * x + y * y), p = (center.x + Double(x), center.y + Double(y))
+                if d <= 12 { px(&body, p.0, p.1) } else if d <= 20 { px(&rim, p.0, p.1) }
+                else if d <= 30, (x + y) % 2 == 0 { px(&halo, p.0, p.1) }
+            } }
+            px(&core, center.x - 2, center.y - 2, 2)
+            let a = t * 2.4
+            px(&glint, center.x + cos(a) * 2.5, center.y + sin(a) * 1.5)
+            var c = c
+            c.opacity *= ease(age / 0.5)
+            var glow = c
+            glow.opacity *= 0.6 + 0.4 * sin(t * 3)
+            glow.fill(halo, with: .color(Self.pink.opacity(0.7)))
+            c.fill(rim, with: .color(Self.violet))
+            c.fill(body, with: .color(Color(red: 0.74, green: 0.62, blue: 0.95)))
+            c.fill(core, with: .color(Self.pink))
+            c.fill(glint, with: .color(.white))
+        }
+
+        /// Finished: a burst of stars leaves the raised staff and drifts down twinkling; one gold star flies to its place.
+        func feast(_ c: GraphicsContext, from tip: CGPoint, e: Double, landing: CGPoint) {
+            let palette = [Color.white, Self.gold, Self.pink, Color(red: 0.75, green: 0.8, blue: 1)]
+            var paths = Array(repeating: Path(), count: palette.count)
+            var rng = SplitMix(seed: 0xFEA57)
+            func random() -> Double { Double(rng.next() % 10_000) / 10_000 }
+            let b = e - 0.35                                        // the burst leaves once the staff is up
+            if b >= 0 {
+                for i in 0 ..< 70 {
+                    let a = random() * 2 * .pi, speed = 40 + random() * 60, delay = random() * 0.3
+                    let s = max(0, b - delay)
+                    let out = speed * (1 - exp(-s * 3.5)) / 3.5      // bursts out and slows down
+                    let x = tip.x + cos(a) * out, y = tip.y + sin(a) * out * 0.8 + 9 * s * s   // then rains down
+                    let twinkle = sin(s * 11 + Double(i) * 1.3) > -0.4
+                    if s > 0, s < 2.7 - random() * 0.7, twinkle { px(&paths[i % palette.count], x, y, i % 3 == 0 ? 2 : 1) }
+                }
+            }
+            if e > 0.2, e < 0.7 {                                  // a flash on the tip as the spell is cast
+                let r = 1 + 4 * ease((e - 0.2) / 0.3)
+                for k in 0 ..< 8 {
+                    let a = Double(k) / 8 * 2 * .pi
+                    for j in 0 ... Int(r) { px(&paths[k % 2 == 0 ? 0 : 1], tip.x + cos(a) * Double(j), tip.y + sin(a) * Double(j)) }
+                }
+            }
+            var c = c
+            c.opacity *= 1 - ease((e - 2.6) / 0.6)
+            for (path, color) in zip(paths, palette) { c.fill(path, with: .color(color)) }
+            if e > 1.2, e < Mage.feastSettles {                      // the gold star of this session flies to the others
+                let k = ease((e - 1.2) / (Mage.feastSettles - 1.2))
+                var star = Path()
+                px(&star, tip.x + (landing.x - tip.x) * k, tip.y + (landing.y - tip.y) * k - 4 * sin(.pi * k))
+                c.opacity = 1
+                c.fill(star, with: .color(Self.gold))
+            }
+        }
+
+        /// Error: the spell sputters out of the staff as a grey puff with a few red sparks dropping out of it.
+        func misfire(_ c: GraphicsContext, from tip: CGPoint, e: Double) {
+            var puff = Path(), sparks = Path()
+            var rng = SplitMix(seed: 0x0F12)
+            func random() -> Double { Double(rng.next() % 10_000) / 10_000 }
+            let grow = ease(e / 0.3)
+            for i in 0 ..< 46 {
+                let a = random() * 2 * .pi, r = (1 + random() * 8) * grow
+                px(&puff, tip.x + cos(a) * r, tip.y + sin(a) * r * 0.75 - 7 * e, i % 4 == 0 ? 2 : 1)
+            }
+            for i in 0 ..< 10 {
+                let vx = (random() - 0.5) * 30, vy = -6 - random() * 10, s = e - 0.04
+                if s > 0, Int(s * 20 + Double(i)) % 3 != 0 { px(&sparks, tip.x + vx * s, tip.y + vy * s + 30 * s * s) }
+            }
+            var c = c
+            c.opacity *= 1 - ease((e - 0.7) / 0.7)
+            var fog = c
+            fog.opacity *= 0.8
+            fog.fill(puff, with: .color(Self.smoke))
+            c.fill(sparks, with: .color(Self.red))
+        }
+
+        /// The counts: red stars for sessions waiting on the user, then gold ones for finished sessions.
+        func counters(_ c: GraphicsContext, around tip: CGPoint, red: Int, gold: Int, t: Double) {
+            var redCore = Path(), redGlow = Path(), goldCore = Path(), goldGlow = Path()
+            for i in 0 ..< min(red + gold, 14) {
+                let p = Mage.sparkSlot(i, tip: tip)
+                let isRed = i < red
+                let bob = (sin(t * 2 + Double(i) * 0.9) * 0.6).rounded()
+                if isRed { px(&redCore, p.x, p.y + bob) } else { px(&goldCore, p.x, p.y + bob) }
+                if sin(t * 3.1 + Double(i) * 1.7) > 0.2 {           // each one twinkles on its own
+                    for (ox, oy) in [(-1.0, 0.0), (1, 0), (0, -1), (0, 1)] {
+                        if isRed { px(&redGlow, p.x + ox, p.y + bob + oy) } else { px(&goldGlow, p.x + ox, p.y + bob + oy) }
+                    }
+                }
+            }
+            c.fill(redGlow, with: .color(Self.redDim))
+            c.fill(goldGlow, with: .color(Self.goldDim))
+            c.fill(redCore, with: .color(Self.red))
+            c.fill(goldCore, with: .color(Self.gold))
+        }
     }
 
     /// One showing: the staff tip visits a few points in the air, leaving a star at each, then lines join them

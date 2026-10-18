@@ -237,6 +237,11 @@ final class Brain {
         var reveal = 1.0        // 0...1 how visible the character is (fades in/out inside the blood)
         var dust = -1.0         // mage teleport: seconds since it scattered into star dust; < 0 = none
         var cast = -1.0         // mage click: seconds since it raised the staff for a shooting star; < 0 = none
+        var rune = -1.0         // mage sentinel: seconds the permission rune has hung in the air; < 0 = none
+        var orb = -1.0          // mage sentinel: seconds the crystal ball has glowed in the hand; < 0 = none
+        var nudge = -1.0        // mage sentinel: seconds since the rune pulsed as a reminder; < 0 = none
+        var feast = -1.0        // mage sentinel: seconds into the finished spell and its star feast; < 0 = none
+        var misfire = -1.0      // mage sentinel: seconds since the spell misfired (error); < 0 = none
         var hang = 0.0          // swing angle while carried (radians)
         var hangPivot = CGPoint(x: 39, y: 20)   // sprite point under the cursor
     }
@@ -302,6 +307,7 @@ final class Brain {
     private var teleportAt: Double?
     private var teleport: (start: Double, to: CGPoint, moved: Bool)?
     private var castStart: Double?
+    private var feastStart: Double?, misfireStart: Double?
     private var walkPhase = 0.0
     private var walkAmount = 0.0
     private var facingRight = false
@@ -561,9 +567,10 @@ final class Brain {
             } else {
                 apply(current.kind, elapsed: elapsed, to: &pose)
             }
-        } else if sentinelHold != .none {
+        } else if sentinelHold != .none, !Mage.isSelected {
             applySentinel(now, to: &pose)
         }
+        if Mage.isSelected { applyMageSentinel(now, carried: carried, to: &pose) }
         if let a = appearStart {
             let appeared = now - a
             if appeared < 2.5 { pose.cocoonAge = appeared; pose.reveal = ease((appeared - 0.55) / 0.9) } else { appearStart = nil }
@@ -583,6 +590,7 @@ final class Brain {
         pose.redSparks = redSparks
         var arriving = 0
         if let a = action, a.kind == .finished, now - a.start < 2.05 { arriving = 1 }
+        if let f = feastStart, now - f < Mage.feastSettles { arriving = 1 }
         pose.goldSparks = max(0, goldSparks - arriving)
         if let c = castStart {
             if now - c > 1.6 { castStart = nil } else { pose.cast = now - c }
@@ -608,7 +616,7 @@ final class Brain {
             blinkUntil = now + 0.17
             nextBlink = now + .random(in: 2.5 ... 6)
         }
-        let idle = sentinelHold == .none      // a held sentinel pose suspends the idle life (blinking stays)
+        let idle = idleLifeRuns
         if idle, now > nextDrift {
             driftDX = [-2, -1, 1, 2].randomElement()!
             driftUntil = now + .random(in: 0.8 ... 2.0)
@@ -1041,20 +1049,59 @@ extension Brain {
     enum SentinelHold: Equatable { case none, barrier, attend }
 
     /// A session finished: flick the blood off, scrape the point along the ground, one gold spark settles on the shoulder.
+    /// Wizzy instead casts with the staff: a feast of stars and a chime, one gold star joins the others.
     func playFinished(at now: Double = CACurrentMediaTime()) {
+        if Mage.isSelected { feastStart = now; onSound?(.chime); return }
         start(.finished, at: now, silent: true)
     }
 
     /// A session stopped with an error: the sword slips out of the hand and is caught again.
+    /// Wizzy's spell misfires instead: a broken puff of smoke and sparks from the staff, and a flinch.
     func playError(at now: Double = CACurrentMediaTime()) {
+        if Mage.isSelected { misfireStart = now; onSound?(.fizzle); return }
         start(.fumble, at: now, silent: true)
     }
 
-    /// A permission has waited too long: one short shake of the barrier sword and a clang.
+    /// A permission has waited too long: one short shake of the barrier sword and a clang (Wizzy: the rune pulses).
     func remindPermission(at now: Double = CACurrentMediaTime()) {
         guard sentinelHold == .barrier else { return }
         remindStart = now
-        onSound?(.clang)
+        onSound?(Mage.isSelected ? .nudge : .clang)
+    }
+
+    /// Glitch stands still in its sentinel pose; Wizzy keeps drifting, glancing and wandering around its rune or orb.
+    var idleLifeRuns: Bool { sentinelHold == .none || Mage.isSelected }
+
+    var actionKind: Action? { action?.kind }
+
+    /// Wizzy's sentinel moves are overlays on its idle life, so they never block it.
+    private func applyMageSentinel(_ now: Double, carried: Bool, to pose: inout Pose) {
+        let free = action == nil && !carried
+        switch sentinelHold {
+        case .none: break
+        case .barrier:
+            pose.rune = now - holdSince
+            if free { pose.eyeDX = -2 }                       // reads the rune hanging in front of it
+            let r = now - remindStart
+            if r >= 0, r < 0.8 { pose.nudge = r }
+        case .attend:
+            pose.orb = now - holdSince
+            if free { pose.eyeDX = 2; pose.headDY += 0.8; pose.headRot += 0.05 }   // looks down into the ball
+        }
+        if let f = feastStart {
+            let e = now - f
+            if e > Mage.feastLength { feastStart = nil } else {
+                pose.feast = e
+                if e > 0.3, e < 2.2 { pose.eyes = .happy }
+            }
+        }
+        if let m = misfireStart {
+            let e = now - m
+            if e > Mage.misfireLength { misfireStart = nil } else {
+                pose.misfire = e
+                if e < 0.5 { pose.shakeX += sin(e * 60) * 0.8 * (1 - e / 0.5); pose.eyes = .wide }
+            }
+        }
     }
 
     func setSentinel(hold: SentinelHold, redSparks: Int, goldSparks: Int, at now: Double = CACurrentMediaTime()) {
@@ -1066,7 +1113,8 @@ extension Brain {
         walkTarget = nil
         if hold == .barrier {
             flareUntil = now + 0.3
-            onSound?(.clang)
+            onSound?(Mage.isSelected ? .rune : .clang)
         }
+        if hold == .attend, Mage.isSelected { onSound?(.orb) }
     }
 }

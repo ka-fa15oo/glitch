@@ -2,6 +2,7 @@ import AVFoundation
 
 enum SoundEffect {
     case wake, farewell, sad, glitch, swish, angry, happy, surprised, tick, thud, clang, scrape
+    case chime, nudge, rune, orb, fizzle   // Wizzy's spells
 }
 
 /// Tiny synthesizer: every effect is generated in code, so there are no audio assets.
@@ -38,6 +39,8 @@ final class SoundBank {
     func play(_ effect: SoundEffect) {
         // Sound tab: mute, volume and per-group switches are read on every play, so changes apply at once
         guard !Prefs.d.bool(forKey: Prefs.muted), SoundGroup.allows(effect) else { return }
+        // Wizzy carries no sword: the knight's metal sounds never play for it, whoever asks for them
+        if Mage.isSelected, [.clang, .scrape, .swish].contains(effect) { return }
         engine.mainMixerNode.outputVolume = Float(Prefs.d.double(forKey: Prefs.volume))
         if !engine.isRunning { try? engine.start() }
         guard engine.isRunning else { return }
@@ -86,6 +89,24 @@ final class SoundBank {
              Step(from: 690, to: 660, duration: 0.12, gain: 0.18)]
         case .scrape:  // metal dragged over stone
             [Step(from: 0, to: 0, duration: 1.0, wave: .noise, gain: 0.3, crush: true)]
+        case .chime:   // finished: a soft rising arpeggio that rings out
+            [Step(from: 1047, to: 1047, duration: 0.11, gain: 0.22),
+             Step(from: 1319, to: 1319, duration: 0.11, gain: 0.22),
+             Step(from: 1568, to: 1568, duration: 0.11, gain: 0.22),
+             Step(from: 2093, to: 2093, duration: 0.7, gain: 0.24)]
+        case .nudge:   // reminder: two quiet pings
+            [Step(from: 880, to: 880, duration: 0.12, gain: 0.16),
+             Step(from: 1175, to: 1175, duration: 0.3, gain: 0.16)]
+        case .rune:    // the rune appears: a low hum rising into a faint tone
+            [Step(from: 196, to: 233, duration: 0.4, gain: 0.22),
+             Step(from: 392, to: 392, duration: 0.35, gain: 0.1)]
+        case .orb:     // the ball lights up: a small upward shimmer
+            [Step(from: 660, to: 990, duration: 0.3, gain: 0.14),
+             Step(from: 1320, to: 1320, duration: 0.3, gain: 0.08)]
+        case .fizzle:  // the spell misfires: a sputter and a sinking buzz
+            [Step(from: 0, to: 0, duration: 0.09, wave: .noise, gain: 0.3, crush: true),
+             Step(from: 240, to: 90, duration: 0.25, wave: .square, gain: 0.14, crush: true),
+             Step(from: 0, to: 0, duration: 0.14, wave: .noise, gain: 0.18)]
         }
     }
 

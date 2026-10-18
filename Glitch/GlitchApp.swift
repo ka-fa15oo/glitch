@@ -523,6 +523,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             else if mood.hasPrefix("walk:"), let phase = Double(mood.dropFirst(5)) {
                 pose.stepAmount = 1; pose.stepPhase = phase; pose.facingRight = false
             }
+            // Wizzy's sentinel moves (run with `-character mage`): "rune:2", "nudge:0.4", "orb:2", "feast:0.8", "misfire:0.3"
+            else if let colon = mood.firstIndex(of: ":"), let e = Double(mood[mood.index(after: colon)...]) {
+                pose.redSparks = 2; pose.goldSparks = 3
+                switch mood[..<colon] {
+                case "rune": pose.rune = e
+                case "nudge": pose.rune = 3; pose.nudge = e
+                case "orb": pose.orb = e
+                case "feast": pose.feast = e; pose.goldSparks = 2; if e > 0.3, e < 2.2 { pose.eyes = .happy }
+                case "misfire": pose.misfire = e; if e < 0.5 { pose.eyes = .wide }
+                default: break
+                }
+            }
         }
         let view = mood.hasPrefix("streak")
             ? AnyView(Mage.ShootingStar(start: CGPoint(x: 560, y: 260), facingRight: false, unit: 2,
