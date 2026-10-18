@@ -79,4 +79,4 @@ xcodebuild -scheme Glitch -destination 'platform=macOS' test
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+All rights reserved. See [LICENSE](LICENSE).
