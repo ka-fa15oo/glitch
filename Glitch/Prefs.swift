@@ -35,7 +35,7 @@ enum Prefs {
 
 /// Sound tab toggles: each switches a group of effects on or off.
 enum SoundGroup: String, CaseIterable {
-    case arrival, reactions, movement, glitch, sword
+    case arrival, reactions, movement, glitch, sword, spells
 
     var key: String { "sound.\(rawValue)" }
 
@@ -46,6 +46,7 @@ enum SoundGroup: String, CaseIterable {
         case .movement: "Steps and falls"
         case .glitch: "Glitch"
         case .sword: "Sword"
+        case .spells: "Wizzy's spells"
         }
     }
 
@@ -56,6 +57,7 @@ enum SoundGroup: String, CaseIterable {
         case .tick, .thud: self = .movement
         case .glitch: self = .glitch
         case .swish, .clang, .scrape: self = .sword
+        case .chime, .nudge, .rune, .orb, .fizzle: self = .spells
         }
     }
 
