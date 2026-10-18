@@ -64,38 +64,48 @@ enum Sprite {
     /// Which pixels of the 72x96 grid the standing character covers (all body parts plus the sword at rest),
     /// so clicks only count on the character itself and fall through everywhere else.
     /// shortcut: built from the rest pose; a raised arm or sword mid-move is matched only near its rest place.
-    static let hitMask: [Bool] = {
+    private static let knightMask: [Bool] = {
         let set = sets[.threeQuarter]!
         let parts = [set.cape, set.thighL, set.shinL, set.footL, set.thighR, set.shinR, set.footR, set.sash, set.tunic,
                      set.cloak, set.pauldronFar, set.pauldronNear, set.armFarUpper, set.armFarFore, set.armNearUpper,
                      set.armNearFore, set.head]
+        // the sword hangs at the hip, shifted from where its PNG puts it
+        let shift = CGPoint(x: Skeleton.grip.x - Skeleton.spriteGrip.x, y: Skeleton.grip.y - Skeleton.spriteGrip.y)
+        return coverage(parts.map { ($0, CGPoint.zero) } + [(sword, shift)])
+    }()
+    private static let knightBounds = bounds(of: knightMask)
+
+    /// The selected character's mask and the box round it (Wizzy has its own shape: staff, hood and cape).
+    static var hitMask: [Bool] { Mage.isSelected ? Mage.hitMask : knightMask }
+    static var hitBounds: CGRect { Mage.isSelected ? Mage.hitBounds : knightBounds }
+
+    /// Which grid pixels these images cover, each moved by its offset in art pixels (y grows down).
+    static func coverage(_ images: [(CGImage, CGPoint)]) -> [Bool] {
         var data = [UInt8](repeating: 0, count: width * height * 4)
         data.withUnsafeMutableBytes { buffer in
             guard let ctx = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
                                       bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
             let full = CGRect(x: 0, y: 0, width: width, height: height)
-            for image in parts { ctx.draw(image, in: full) }
-            // the sword hangs at the hip, shifted from where its PNG puts it (art y grows down, CG y grows up)
-            let shift = CGPoint(x: Skeleton.grip.x - Skeleton.spriteGrip.x, y: Skeleton.grip.y - Skeleton.spriteGrip.y)
-            ctx.draw(sword, in: full.offsetBy(dx: shift.x, dy: -shift.y))
+            for (image, shift) in images { ctx.draw(image, in: full.offsetBy(dx: shift.x, dy: -shift.y)) }   // CG y grows up
         }
         return (0 ..< width * height).map { data[$0 * 4 + 3] > 20 }
-    }()
+    }
 
-    /// The box round everything the standing character covers on the sprite grid, sword tip and cape included.
-    static let hitBounds: CGRect = {
+    /// The box round every covered pixel of a mask.
+    static func bounds(of mask: [Bool]) -> CGRect {
         var minX = width, maxX = 0, minY = height, maxY = 0
         for y in 0 ..< height {
-            for x in 0 ..< width where hitMask[y * width + x] {
+            for x in 0 ..< width where mask[y * width + x] {
                 minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
             }
         }
         return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
-    }()
+    }
 
     /// True when (x, y) on the sprite grid, or a pixel right next to it, is part of the character.
     static func hit(_ x: Int, _ y: Int) -> Bool {
+        let hitMask = hitMask
         for dy in -1 ... 1 {
             for dx in -1 ... 1 {
                 let px = x + dx, py = y + dy
