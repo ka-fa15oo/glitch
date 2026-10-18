@@ -222,18 +222,19 @@ eyes("eyes_angry", [(32, 21), (37, 21)], [(31, 20), (38, 20)])
 eyes("eyes_happy", [(31, 21), (32, 20), (33, 21), (36, 21), (37, 20), (38, 21)])
 
 # ------------------------------------------------------------------ staff: taller than the mage, a yellow star on its tip
-STAFF_BASE, STAFF_TOP = (23, 92), (18, 5)
+STAFF_BASE, STAFF_TOP = (23, 92), (18, 8)
 
 
 def staff_extra(im):
-    star = [(18, 0), (18, 1), (15, 2), (16, 2), (17, 2), (18, 2), (19, 2), (20, 2), (21, 2),
-            (17, 3), (18, 3), (19, 3), (16, 4), (17, 4), (19, 4), (20, 4), (16, 5), (20, 5)]
+    star = [(18, 0), (17, 1), (18, 1), (19, 1), (17, 2), (18, 2), (19, 2)] \
+        + [(x, 3) for x in range(13, 24)] + [(x, 4) for x in range(14, 23)] + [(x, 5) for x in range(15, 22)] \
+        + [(15, 6), (16, 6), (17, 6), (19, 6), (20, 6), (21, 6), (14, 7), (15, 7), (16, 7), (20, 7), (21, 7),
+           (22, 7), (14, 8), (22, 8)]
     put(im, star, RAMPS["gold"][3])
-    put(im, [(15, 2), (21, 2), (16, 5), (20, 5), (18, 0)], RAMPS["gold"][2])   # dimmer points
-    put(im, [(18, 2), (18, 3)], GOLD)
-    put(im, [(12, 1), (24, 4), (14, 8)], STAR)                # small white stars around the tip
-    put(im, [(23, 0), (11, 5), (22, 8)], STAR_DIM)
-
+    put(im, [(18, 0), (13, 3), (23, 3), (14, 8), (22, 8), (15, 6), (21, 6)], RAMPS["gold"][2])   # dimmer points
+    put(im, [(18, 3), (17, 4), (18, 4), (19, 4), (18, 5)], GOLD)
+    put(im, [(10, 1), (26, 5), (12, 10)], STAR)               # small white stars around the tip
+    put(im, [(25, 0), (9, 6), (24, 10)], STAR_DIM)
 
 parts["staff"] = combine("staff", Layer("wood", [tl(STAFF_BASE, STAFF_TOP, 2.6)], seed=29, grit=0.1),
                          extra=staff_extra)

@@ -323,7 +323,7 @@ enum Mage {
     /// and the figure fades. Every showing has its own shape (seeded by which showing it is).
     private struct Constellation {
         static let period = 70.0, length = 9.0
-        static let tip = CGPoint(x: 18, y: 2.5)     // the gold star on the staff sprite
+        static let tip = CGPoint(x: 18, y: 4)     // the gold star on the staff sprite
 
         let e: Double
         let stars: [(angle: Double, lift: Double, at: CGPoint)]
