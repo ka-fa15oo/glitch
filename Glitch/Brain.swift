@@ -267,7 +267,7 @@ final class Brain {
     private var action: (kind: Action, start: Double)?
     private var quitUntil = 0.0
     private var appearStart: Double?
-    private struct Glide { var start: Double; var road: MageCosmos.Road }       // Wizzy's arrival along a road of stars
+    private struct Glide { var start: Double }       // Wizzy's arrival: a rain of stars that gathers into it
     private struct Landing { var impact: Double?; var vy = 0.0; var x: Double; var glide: Glide?; var chimed = false }
     private struct Hole { var start: Double; var from: CGPoint; var target: CGPoint }   // Wizzy's goodbye into a black hole
     private var hole: Hole?
@@ -381,23 +381,16 @@ final class Brain {
         return true
     }
 
-    /// Wizzy does not fall: it draws a road through the stars from above the screen and glides down it.
+    /// Wizzy does not fall: stars rain down over the landing spot and gather into it.
     private func beginStarGlide(bounds: CGRect, at now: Double) -> Bool {
         let tx = bounds.minX + bounds.width * .random(in: 1.0 / 3 ... 2.0 / 3)
-        let ty = groundY(), top = bounds.maxY + 270
-        let side: CGFloat = Bool.random() ? 1 : -1
-        let sx = min(bounds.maxX, max(bounds.minX, tx + side * .random(in: 220 ... 420)))
-        let span = top - ty
-        let road = MageCosmos.Road(p0: CGPoint(x: sx, y: top), p1: CGPoint(x: tx - side * 260, y: ty + span * 0.66),
-                                   p2: CGPoint(x: tx + side * 300, y: ty + span * 0.30), p3: CGPoint(x: tx, y: ty))
-        setWindowOrigin(road.p0)
-        landing = Landing(x: tx, glide: Glide(start: now, road: road))
+        let ty = groundY()
+        setWindowOrigin(CGPoint(x: tx, y: ty))
+        landing = Landing(x: tx, glide: Glide(start: now))
         action = nil
         drop = .none
-        // the overlay draws the road through the middle of the pet window
-        let mid = CGPoint(x: 124, y: 108)
-        func shifted(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x + mid.x, y: p.y + mid.y) }
-        MageCosmos.openStarRoad(MageCosmos.Road(p0: shifted(road.p0), p1: shifted(road.p1), p2: shifted(road.p2), p3: shifted(road.p3)))
+        // the overlay rains the stars; the pet window itself stays where it will be, unseen until the dust gathers
+        MageCosmos.openStarRain(over: CGPoint(x: tx + 124, y: ty + 108))
         onSound?(.starGlide)
         return true
     }
@@ -433,10 +426,8 @@ final class Brain {
         guard var l = landing else { return }
         if let g = l.glide {
             let e = now - g.start
-            let u = MageCosmos.glideProgress(e)
-            setWindowOrigin(g.road.point(u))
-            if u >= 1, !l.chimed { l.chimed = true; onSound?(.chime) }
-            if e > MageCosmos.glideStart + MageCosmos.glideDuration + 0.8 { landing = nil; nextAuto = now + .random(in: 6 ... 12); return }
+            if e >= MageCosmos.materializeAt + 0.9, !l.chimed { l.chimed = true; onSound?(.chime) }   // it has taken shape
+            if e > MageCosmos.rainLength - 0.3 { landing = nil; nextAuto = now + .random(in: 6 ... 12); return }
             landing = l
             return
         }
@@ -473,11 +464,10 @@ final class Brain {
     }
 
     private func applyStarGlide(_ g: Glide, now: Double, to pose: inout Pose) {
-        let u = MageCosmos.glideProgress(now - g.start)
-        let moving = 4 * u * (1 - u)                                  // 0 at either end, 1 in mid-glide
-        pose.hang = 0.4 * Double(g.road.tangent(u).x) * moving         // leans into the way it is going
-        pose.stepAmount = 0.9 * moving                                // the robe streams behind
-        pose.headDY -= 0.5 * moving
+        // unseen while the stars rain, then the star dust gathers (the teleport's way of coming back) and it takes shape
+        let e = now - g.start
+        pose.dust = e < MageCosmos.materializeAt ? 0.69 : 0.7 + (e - MageCosmos.materializeAt)
+        pose.eyes = e < MageCosmos.materializeAt + 0.9 ? .closed : .open
     }
 
     private func applyLanding(_ l: Landing, now: Double, to pose: inout Pose) {

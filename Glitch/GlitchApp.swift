@@ -541,6 +541,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch mood[..<colon] {
                 case "rune": pose.rune = e
                 case "nudge": pose.rune = 3; pose.nudge = e
+                case "gather": pose.dust = 0.7 + e
                 case "vortex": pose.vortex = e
                 case "glide": pose.hang = 0.3; pose.stepAmount = 0.9
                 case "orb": pose.orb = e
@@ -550,9 +551,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
-        let view = mood.hasPrefix("road:")
-            ? AnyView(MageCosmos.RoadView(road: MageCosmos.Road(p0: CGPoint(x: 560, y: -10), p1: CGPoint(x: 150, y: 110), p2: CGPoint(x: 600, y: 300), p3: CGPoint(x: 300, y: 470)),
-                                          fixedAge: Double(mood.dropFirst(5)) ?? 0.5)
+        let view = mood.hasPrefix("rain:")
+            ? AnyView(MageCosmos.RainView(landing: CGPoint(x: 350, y: 380), ground: 420, fixedAge: Double(mood.dropFirst(5)) ?? 0.8)
                 .frame(width: 700, height: 500).background(Color(red: 0.09, green: 0.08, blue: 0.14)))
             : mood.hasPrefix("hole:")
             ? AnyView(MageCosmos.HoleView(center: CGPoint(x: 350, y: 250), fixedAge: Double(mood.dropFirst(5)) ?? 1.5)
