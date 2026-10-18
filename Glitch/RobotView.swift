@@ -320,7 +320,9 @@ struct RobotView: View {
                 let flingShift = -pose.fling * 22 * kk + pose.wind * 32 * kk
                 let lift = (22 * pose.fallAmount + 12 * abs(pose.fling) + 9 * pose.wind) * kk
                 let flare = 1 + 0.35 * pose.fallAmount * kk
-                let dx = (wave * kk - bx * k - pose.torsoRot * 6 * (1 - k) + flingShift + streamBase * kk).rounded()
+                // the top edge rides the shoulders as the body lunges and leans (about the waist); the hem follows the legs
+                let follow = bx + 20 * sin(pose.torsoRot - 0.04)
+                let dx = (wave * kk + follow * (1 - k) - 0.4 * bx * k + flingShift + streamBase * kk).rounded()
                 let rect = CGRect(x: (dx + (1 - flare) * 38) * unit, y: (y + breath * 0.2 + by - lift) * unit,
                                   width: size.width * flare, height: 2 * unit + 0.6)
                 ctx.draw(Image(decorative: row, scale: 1).interpolation(.none), in: rect)
