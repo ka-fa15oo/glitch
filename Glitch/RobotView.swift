@@ -202,6 +202,7 @@ struct RobotView: View {
     ) {
         if Mage.isSelected { return Mage.draw(&outer, unit: unit, size: size, t: t, pose: pose) }
         if Elf.isSelected { return Elf.draw(&outer, unit: unit, size: size, t: t, pose: pose) }
+        if Phoenix.isSelected { return Phoenix.draw(&outer, unit: unit, size: size, t: t, pose: pose) }
         if pose.cocoonAge >= 0, pose.cocoonHold {
             // goodbye: a blood storm whirls round the kneeling knight and takes it away
             BloodStorm.draw(&outer, unit: unit, age: pose.cocoonAge, t: t, side: .behind)

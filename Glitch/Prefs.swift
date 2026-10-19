@@ -82,6 +82,7 @@ struct CharacterInfo: Identifiable {
         CharacterInfo(id: Mage.id, name: "Wizzy", theme: "Cosmic mage", available: true),
         CharacterInfo(id: Elf.id, name: "Faelis", theme: "Fairy elf queen", available: true),
         CharacterInfo(id: "slot4", name: "Character 4", theme: "Coming soon", available: false),
+        CharacterInfo(id: Phoenix.id, name: "Phoenix", theme: "Crimson phoenix", available: true),
     ]
 }
 
