@@ -569,8 +569,14 @@ final class Brain {
         }
         // only when it is idle: no action, no sentinel pose, not landing, falling or being carried
         guard action == nil, landing == nil, sentinelHold == .none, now - lastMove > 1.0 else { return }
-        // shortcut: Faelis smiles until her flower move is built (a later plan)
-        if Elf.isSelected { start(.happy, at: now); return }
+        // Faelis flicks her wand and flowers fly out all round her
+        if Elf.isSelected {
+            guard castStart == nil else { return }
+            castStart = now
+            onSound?(.petals)
+            Elf.scatterFlowers(windowOrigin: windowOrigin(), facingRight: facingRight)
+            return
+        }
         if case .none = drop { start(.flourish, at: now, silent: true) }
     }
 

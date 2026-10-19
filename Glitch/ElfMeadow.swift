@@ -262,12 +262,81 @@ enum ElfMeadow {
         }
     }
 
+    // MARK: - the flower shower (click)
+
+    /// Flowers tossed from the wand tip: `vx`, `vy` in pt/s (y down), `spin` turns it as it flies.
+    struct Petal { let vx: Double; let vy: Double; let color: Int; let spin: Double }
+
+    static let burstCount = 40, burstLength = 2.4
+
+    static func petals(count: Int) -> [Petal] {
+        var rng = SplitMix(seed: 0x9E7A)
+        func random() -> Double { Double(rng.next() % 10_000) / 10_000 }
+        return (0 ..< count).map { i in
+            let side = i % 2 == 0 ? -1.0 : 1.0                                 // half each way, so they land all round her
+            return Petal(vx: side * (60 + 220 * random()), vy: -(160 + 260 * random()), color: i % ElfMeadow.petals.count,
+                         spin: 4 + 8 * random())
+        }
+    }
+
+    /// Where petal `p` is `age` s after leaving the tip (pt from it, y down), and how visible; it lands `drop` pt below.
+    static func petal(_ p: Petal, age: Double, drop: Double) -> (offset: CGPoint, alpha: Double, landed: Bool) {
+        let g = 900.0
+        let y = p.vy * age + g * age * age / 2
+        // the time it reaches the ground: the later root of vy t + g t²/2 = drop
+        let land = (-p.vy + (p.vy * p.vy + 2 * g * drop).squareRoot()) / g
+        let t = min(age, land)
+        let alpha = 1 - ease((age - (burstLength - 0.8)) / 0.8)
+        return (CGPoint(x: p.vx * t, y: min(y, drop)), age >= burstLength ? 0 : alpha, age >= land)
+    }
+
+    struct BurstView: View {
+        let start: CGPoint            // the wand tip, view coordinates (y down)
+        let drop: Double              // pt from the tip down to the ground
+        let unit: Double
+        var fixedAge: Double?
+        private let began = Date.timeIntervalSinceReferenceDate
+        private let list = petals(count: burstCount)
+
+        var body: some View {
+            if let fixedAge { canvas(age: fixedAge) } else {
+                TimelineView(.animation) { canvas(age: $0.date.timeIntervalSinceReferenceDate - began) }
+            }
+        }
+
+        private func canvas(age: Double) -> some View {
+            Canvas { c, _ in
+                for p in list {
+                    let f = petal(p, age: age, drop: drop)
+                    guard f.alpha > 0.01 else { continue }
+                    let x = ((start.x + f.offset.x) / unit).rounded() * unit, y = ((start.y + f.offset.y) / unit).rounded() * unit
+                    var bloom = Path(), heart = Path()
+                    func cell(_ path: inout Path, _ dx: Double, _ dy: Double) {
+                        path.addRect(CGRect(x: x + dx * unit, y: y + dy * unit, width: unit, height: unit))
+                    }
+                    cell(&heart, 0, 0)
+                    // a five-pixel blossom that twirls while it flies (plus, then cross) and lies still once landed
+                    let plus = f.landed || Int(age * p.spin) % 2 == 0
+                    for (dx, dy) in plus ? [(-1.0, 0.0), (1, 0), (0, -1), (0, 1)] : [(-1.0, -1.0), (1, -1), (-1, 1), (1, 1)] {
+                        cell(&bloom, dx, dy)
+                    }
+                    var layer = c
+                    layer.opacity = f.alpha
+                    layer.fill(bloom, with: .color(ElfMeadow.petals[p.color]))
+                    layer.fill(heart, with: .color(ElfMeadow.heart))
+                }
+            }
+        }
+    }
+
     // MARK: - overlay windows
 
-    @MainActor private static var overlay: NSWindow?
+    @MainActor private static var overlays: [String: NSWindow] = [:]
 
     /// A window the size of the screen that holds `point`, click-through and see-through; closes itself after `life`.
-    @MainActor private static func showOverlay(containing point: CGPoint, life: Double, content: (_ frame: CGRect) -> AnyView) {
+    /// One per `slot`, so a flower shower does not cut the arrival short.
+    @MainActor private static func showOverlay(_ slot: String = "scene", containing point: CGPoint, life: Double,
+                                               content: (_ frame: CGRect) -> AnyView) {
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(point) }) ?? NSScreen.main else { return }
         let frame = screen.frame
         let window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
@@ -279,12 +348,12 @@ enum ElfMeadow {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: content(frame))
-        overlay?.close()
-        overlay = window
+        overlays[slot]?.close()
+        overlays[slot] = window
         window.orderFrontRegardless()
         DispatchQueue.main.asyncAfter(deadline: .now() + life) {
             window.close()
-            if overlay === window { overlay = nil }
+            if overlays[slot] === window { overlays[slot] = nil }
         }
     }
 
@@ -293,6 +362,13 @@ enum ElfMeadow {
         showOverlay(containing: center, life: arrivalLength) { frame in
             let ground = Double(frame.maxY - (center.y - 80))                      // the feet are 80 pt under the middle
             return AnyView(MeadowView(landing: CGPoint(x: center.x - frame.minX, y: frame.maxY - center.y), ground: ground))
+        }
+    }
+
+    /// `tip` in screen coordinates (y up); the flowers land `drop` pt below it.
+    @MainActor static func openBurst(at tip: CGPoint, drop: Double, unit: Double) {
+        showOverlay("burst", containing: tip, life: burstLength) { frame in
+            AnyView(BurstView(start: CGPoint(x: tip.x - frame.minX, y: frame.maxY - tip.y), drop: drop, unit: unit))
         }
     }
 

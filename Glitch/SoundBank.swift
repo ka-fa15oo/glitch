@@ -5,6 +5,7 @@ enum SoundEffect {
     case chime, nudge, rune, orb, fizzle   // Wizzy's spells
     case starGlide, hole                   // Wizzy's arrival along the star road and its black hole goodbye
     case constellation, dustOut, dustIn, shootingStar   // Wizzy's idle and walking spells, and its click
+    case petals                            // Faelis's click: a shower of flowers from her wand
 }
 
 /// Tiny synthesizer: every effect is generated in code, so there are no audio assets.
@@ -39,6 +40,7 @@ final class SoundBank {
     }
 
     func play(_ effect: SoundEffect) {
+        let effect = Elf.isSelected ? Elf.voice(effect) : effect
         // Sound tab: mute, volume and per-group switches are read on every play, so changes apply at once
         guard !Prefs.d.bool(forKey: Prefs.muted), SoundGroup.allows(effect) else { return }
         // Wizzy carries no sword: the knight's metal sounds never play for it, whoever asks for them
@@ -125,6 +127,11 @@ final class SoundBank {
         case .dustIn:      // gathering again: a shimmer coming down to rest
             [Step(from: 2600, to: 1300, duration: 0.5, gain: 0.07),
              Step(from: 1300, to: 1300, duration: 0.2, gain: 0.04)]
+        case .petals:   // a light tinkle, like little bells
+            [Step(from: 1568, to: 1568, duration: 0.07, gain: 0.16),
+             Step(from: 2093, to: 2093, duration: 0.07, gain: 0.15),
+             Step(from: 2637, to: 2637, duration: 0.07, gain: 0.13),
+             Step(from: 3136, to: 3136, duration: 0.35, gain: 0.1)]
         case .shootingStar:   // a quick bright streak that fades
             [Step(from: 1900, to: 3100, duration: 0.12, gain: 0.1),
              Step(from: 3100, to: 1500, duration: 0.6, gain: 0.07)]
