@@ -25,10 +25,19 @@ struct ElfMeadowTests {
         #expect(ElfMeadow.arrivalLength > ElfMeadow.riseAt + 1.2)
     }
 
+    @Test func flowersShootUpTallThenSinkBack() {
+        let middle = ElfMeadow.flowers.filter { abs($0.dx) < 40 }
+        #expect(!middle.isEmpty)
+        for f in middle {
+            #expect(ElfMeadow.stemCells(f, age: ElfMeadow.riseAt) >= 25)                    // tall enough to hide her
+            #expect(ElfMeadow.stemCells(f, age: ElfMeadow.arrivalLength - 0.4) <= 3)        // back down again
+        }
+    }
+
     @Test func butterfliesLeaveBeforeTheAppQuits() {
         let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
         let center = CGPoint(x: 720, y: 450)
-        #expect(ElfMeadow.butterflies.count >= 16)
+        #expect(ElfMeadow.butterflies.count >= 50)
         for b in ElfMeadow.butterflies {
             #expect(ElfMeadow.flight(b, age: ElfMeadow.spellLength - 0.1, from: center).alpha == 0)   // none before the spell ends
             let gone = ElfMeadow.flight(b, age: ElfMeadow.farewellLength, from: center)

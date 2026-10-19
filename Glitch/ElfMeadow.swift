@@ -8,9 +8,9 @@ enum ElfMeadow {
 
     // MARK: - timings (shared by the overlay and the brain)
 
-    /// Arrival: the sun opens by `sunUp`, its beam reaches the ground at `bloomAt`, flowers bloom until `riseAt`,
-    /// she rises over the next second, then the light and the flowers fade.
-    static let sunUp = 0.9, beamAt = 0.6, bloomAt = 1.2, riseAt = 2.0, arrivalLength = 4.6
+    /// Arrival: the sun opens by `sunUp`, its beam reaches the ground at `bloomAt`, flowers shoot up tall until `riseAt`,
+    /// she rises behind them over the next second, the flowers sink back down from `shrinkAt`, then light and flowers fade.
+    static let sunUp = 0.9, beamAt = 0.6, bloomAt = 1.2, riseAt = 2.5, shrinkAt = 3.5, arrivalLength = 5.2
     /// Goodbye: the wand spell takes `spellLength`, then she becomes butterflies; the app may quit at `farewellLength`.
     static let spellLength = 1.2, farewellLength = 3.8
 
@@ -30,20 +30,29 @@ enum ElfMeadow {
     static let heart = Color(red: 0.91, green: 0.69, blue: 0.19)
     static let stem = Color(red: 0.31, green: 0.60, blue: 0.27), leaf = Color(red: 0.47, green: 0.76, blue: 0.35)
 
-    /// `dx`: pt from the landing spot, `dy`: pt above the ground line, `height`: stem cells, `bloom`: seconds into the arrival.
-    struct Flower { let dx: Double; let dy: Double; let height: Int; let color: Int; let big: Bool; let bloom: Double }
+    /// `dx`: pt from the landing spot, `dy`: pt above the ground line, `height`: stem cells at its tallest,
+    /// `bloom`: seconds into the arrival when it sprouts, `lag`: how much later than `shrinkAt` it starts to sink.
+    struct Flower { let dx: Double; let dy: Double; let height: Int; let color: Int; let big: Bool; let bloom: Double; let lag: Double }
 
     static let flowers: [Flower] = {
         var rng = SplitMix(seed: 0xF10A)
         func random() -> Double { Double(rng.next() % 10_000) / 10_000 }
-        return (0 ..< 32).map { i in
-            let dx = (random() * 2 - 1) * 95
-            // the middle blooms first and the bloom spreads outwards
-            let bloom = bloomAt + 0.7 * min(1, abs(dx) / 95) * (0.7 + 0.3 * random())
-            return Flower(dx: dx, dy: random() * 10 - 2, height: 3 + Int(random() * 6), color: i % petals.count,
-                          big: i % 4 == 0, bloom: min(riseAt - 0.05, bloom))
+        return (0 ..< 44).map { i in
+            let dx = (random() * 2 - 1) * 90
+            // the middle sprouts first and it spreads outwards; the middle ones grow tallest, a thicket she hides behind
+            let bloom = bloomAt + 0.4 * min(1, abs(dx) / 90) * (0.7 + 0.3 * random())
+            let height = Int((30 + 18 * random()) * (1 - 0.35 * abs(dx) / 90))
+            return Flower(dx: dx, dy: random() * 10 - 2, height: height, color: i % petals.count,
+                          big: i % 3 == 0, bloom: bloom, lag: 0.3 * random())
         }
     }()
+
+    /// Stem cells of flower `f` at `age`: it shoots up to its full height, then sinks back to a short sprig.
+    static func stemCells(_ f: Flower, age: Double) -> Int {
+        let grow = ease((age - f.bloom) / 0.9), sink = ease((age - shrinkAt - f.lag) / 0.9)
+        guard age > f.bloom else { return 0 }
+        return max(1, Int((2 + Double(f.height - 2) * grow * (1 - sink)).rounded()))
+    }
 
     struct MeadowView: View {
         let landing: CGPoint          // view coordinates (y down) of the middle of the pet window
@@ -61,7 +70,7 @@ enum ElfMeadow {
             Canvas { c, size in
                 // the sun stands high on the inner side of the landing spot, so its light falls slantwise
                 let sun = CGPoint(x: landing.x + (landing.x < size.width / 2 ? 240 : -240), y: max(110, ground - 560))
-                let lightFade = 1 - ease((age - 3.2) / 1.0)
+                let lightFade = 1 - ease((age - 3.8) / 1.0)
                 drawSun(c, at: sun, age: age, fade: lightFade)
                 drawBeam(c, from: sun, age: age, fade: lightFade)
                 drawFlowers(c, age: age)
@@ -132,9 +141,9 @@ enum ElfMeadow {
             }
         }
 
-        /// Each flower pushes up its stem, opens a bud, then the full blossom; all fade at the end.
+        /// Each flower shoots up its stem with leaves along it, opens a bud, then the full blossom; it sinks back, then all fade.
         private func drawFlowers(_ c: GraphicsContext, age: Double) {
-            let fade = 1 - ease((age - (arrivalLength - 1.0)) / 1.0)
+            let fade = 1 - ease((age - (arrivalLength - 0.5)) / 0.5)
             guard fade > 0 else { return }
             let unit = 4.0
             var stems = Path(), leaves = Path(), hearts = Path()
@@ -146,9 +155,11 @@ enum ElfMeadow {
                 let e = age - f.bloom
                 guard e > 0 else { continue }
                 let x = landing.x + f.dx, base = ground - f.dy
-                let grown = Int((Double(f.height) * ease(e / 0.25)).rounded(.up))
+                let grown = stemCells(f, age: age)
                 for k in 0 ..< grown { cell(&stems, x, base - Double(k) * unit) }
-                if f.height > 3, grown > 2 { cell(&leaves, x + unit, base - 2 * unit) }
+                for k in stride(from: 3, to: grown - 1, by: 5) {                    // leaves on alternate sides
+                    cell(&leaves, x + (k % 2 == 0 ? unit : -unit), base - Double(k) * unit)
+                }
                 let top = base - Double(grown) * unit
                 let open = e - 0.2
                 if open > 0 {
@@ -182,9 +193,9 @@ enum ElfMeadow {
     static let butterflies: [Butterfly] = {
         var rng = SplitMix(seed: 0xB077)
         func random() -> Double { Double(rng.next() % 10_000) / 10_000 }
-        return (0 ..< 22).map { i in
-            Butterfly(dx: (random() * 2 - 1) * 26, dy: (random() * 2 - 1) * 62,
-                      angle: -.pi * (0.08 + 0.84 * random()), speed: 170 + 140 * random(),
+        return (0 ..< 64).map { i in
+            Butterfly(dx: (random() * 2 - 1) * 34, dy: (random() * 2 - 1) * 70,
+                      angle: -.pi * (-0.1 + 1.2 * random()), speed: 150 + 170 * random(),
                       color: i % petals.count, phase: random() * 6.28)
         }
     }()
