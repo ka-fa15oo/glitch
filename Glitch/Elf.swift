@@ -15,6 +15,8 @@ enum Elf {
         [set.cape, set.thighL, set.shinL, set.footL, set.thighR, set.shinR, set.footR, set.tunic, set.cloak, set.armFarUpper, set.armFarFore, set.armNearUpper, set.armNearFore,
          set.head, wings, wand].map { ($0, CGPoint(x: 0, y: -2)) })
     static let hitBounds = Sprite.bounds(of: hitMask)
+    /// The far hand that holds the wand (after the lean); the wand turns about it when she casts.
+    private static let hand = CGPoint(x: 23.5, y: 55)
     private static let neck = CGPoint(x: 36, y: 33)   // 4 px left of centre: the sprites lean forward (make_elf.py LEAN)
     /// The dress in 2 px rows so its hem can ripple while gliding.
     private static let dressRows: [CGImage] = stride(from: 0, to: Sprite.height, by: 2).compactMap {
@@ -82,9 +84,13 @@ enum Elf {
         put(set.thighL, ctx); put(set.shinL, ctx, dy: sway); put(set.footL, ctx, dy: sway)
         put(set.thighR, ctx); put(set.shinR, ctx, dy: -sway); put(set.footR, ctx, dy: -sway)
         rows(dressRows, ctx, amount: 1.4 + flutter * 0.4, speed: 2 * .pi / 1.8)
+        // goodbye spell: the wand comes up straight, then flicks out as the sparkles leave its tip
+        let e = pose.spell
+        let lift = e >= 0 ? ElfMeadow.ease(e / 0.3) : 0
+        let wandAngle = e >= 0 ? 0.5 * lift - 0.85 * ElfMeadow.ease((e - 0.5) / 0.18) : 0
         put(set.armFarUpper, ctx, dy: breath * 0.5)
-        put(wand, ctx, dy: breath * 0.4)
-        put(set.armFarFore, ctx, dy: breath * 0.4)
+        put(wand, ctx, dy: breath * 0.4 - 2 * lift, angle: wandAngle, pivot: hand)
+        put(set.armFarFore, ctx, dy: breath * 0.4 - 2 * lift)
         put(set.cloak, ctx, dy: breath * 0.5)
 
         let headDY = breath * 0.8 + pose.headDY
@@ -94,5 +100,33 @@ enum Elf {
         }
         put(set.armNearUpper, ctx, dy: breath * 0.5)
         put(set.armNearFore, ctx, dy: breath * 0.5)
+        if pose.spell >= 0 { drawSpell(ctx, unit: unit, e: pose.spell, dx: bx, dy: by) }
+    }
+
+    /// Sparkles stream from the wand tip and wind round her until she is wrapped in them, twinkling as they go.
+    private static func drawSpell(_ c: GraphicsContext, unit: CGFloat, e: Double, dx: Double, dy: Double) {
+        let palette: [Color] = [Color(red: 0.69, green: 0.88, blue: 0.48), Color(red: 1.0, green: 0.85, blue: 0.29), .white]
+        var paths = Array(repeating: Path(), count: palette.count)
+        func cell(_ tone: Int, _ x: Double, _ y: Double) {
+            paths[tone].addRect(CGRect(x: (x + dx).rounded() * unit, y: (y + dy).rounded() * unit, width: unit, height: unit))
+        }
+        let fade = 1 - ElfMeadow.ease((e - 1.4) / 0.35)
+        for i in 0 ..< 32 {
+            let shown = e - (0.55 + Double(i) * 0.022)
+            guard shown > 0 else { continue }
+            // a spiral round her body, leaving from the flicked wand tip on her left
+            let a = Double.pi + Double(i) * 0.38 + shown * 2.0
+            let x = 34 + cos(a) * (18 + Double(i) * 0.4), y = 52 + sin(a) * (28 + Double(i) * 0.6)
+            let tone = i % 3
+            cell(tone, x, y)
+            if (i + Int(e * 12)) % 2 == 0 {
+                cell(tone, x - 1, y); cell(tone, x + 1, y); cell(tone, x, y - 1); cell(tone, x, y + 1)
+            } else {
+                cell(2, x - 1, y - 1); cell(2, x + 1, y + 1)
+            }
+        }
+        var c = c
+        c.opacity = fade
+        for (path, color) in zip(paths, palette) { c.fill(path, with: .color(color)) }
     }
 }

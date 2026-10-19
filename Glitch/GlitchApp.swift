@@ -568,6 +568,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "orb": pose.orb = e
                 case "feast": pose.feast = e; pose.goldSparks = 2; if e > 0.3, e < 2.2 { pose.eyes = .happy }
                 case "misfire": pose.misfire = e; if e < 0.5 { pose.eyes = .wide }
+                case "spell": pose.spell = e; pose.eyes = .happy; pose.reveal = 1 - ElfMeadow.ease((e - ElfMeadow.spellLength) / 0.5)
                 default: break
                 }
             }
@@ -575,6 +576,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let view = mood.hasPrefix("rain:")
             ? AnyView(MageCosmos.RainView(landing: CGPoint(x: 350, y: 380), ground: 420, fixedAge: Double(mood.dropFirst(5)) ?? 0.8)
                 .frame(width: 700, height: 500).background(Color(red: 0.09, green: 0.08, blue: 0.14)))
+            : mood.hasPrefix("meadow:")
+            ? AnyView(ElfMeadow.MeadowView(landing: CGPoint(x: 350, y: 380), ground: 460, fixedAge: Double(mood.dropFirst(7)) ?? 2)
+                .frame(width: 900, height: 600).background(Color(red: 0.79, green: 0.81, blue: 0.85)))
+            : mood.hasPrefix("flutter:")
+            ? AnyView(ElfMeadow.ButterflyView(center: CGPoint(x: 450, y: 380), fixedAge: Double(mood.dropFirst(8)) ?? 2)
+                .frame(width: 900, height: 600).background(Color(red: 0.79, green: 0.81, blue: 0.85)))
             : mood.hasPrefix("hole:")
             ? AnyView(MageCosmos.HoleView(center: CGPoint(x: 350, y: 250), fixedAge: Double(mood.dropFirst(5)) ?? 1.5)
                 .frame(width: 700, height: 500).background(Color(red: 0.09, green: 0.08, blue: 0.14)))
