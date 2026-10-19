@@ -206,7 +206,7 @@ def build():
     EAR = [(46, 17), (54, 11), (49, 21), (46, 22)]
 
     def head_extra(im):
-        put(im, [(35, 25), (36, 25)], LIP)                     # mouth
+        put(im, [(34, 24), (35, 25), (36, 25), (37, 24)], LIP)  # she is always smiling
         put(im, [(33, 22)], RAMPS["skin"][1])                  # nose shadow
         put(im, [(x, 9 + (x - 41) ** 2 // 14) for x in range(32, 51)], RAMPS["leaf"][2])   # crown band
         put(im, [(x, 8 + (x - 41) ** 2 // 14) for x in range(33, 50, 2)], RAMPS["leaf"][3])
@@ -230,8 +230,9 @@ def build():
     eyes("eyes_closed", [], [], [(34, 20), (35, 20), (36, 20), (39, 20), (40, 20), (41, 20)])
     eyes("eyes_wide", [(35, 20), (35, 21), (40, 20), (40, 21)], [(36, 20), (41, 20)],
          [(34, 18), (35, 18), (36, 18), (39, 18), (40, 18), (41, 18)])
-    eyes("eyes_angry", [(35, 20), (40, 20)], [(36, 20), (41, 20)], [(34, 18), (35, 19), (36, 19), (39, 19), (40, 19), (41, 18)])
-    eyes("eyes_happy", [], [], [(34, 20), (35, 19), (36, 20), (39, 20), (40, 19), (41, 20)])
+    # she is never cross: where the others glare, her eyes crinkle in a smile
+    for mood in ("eyes_angry", "eyes_happy"):
+        eyes(mood, [], [], [(34, 20), (35, 19), (36, 20), (39, 20), (40, 19), (41, 20)])
 
     # ------------------------------------------------------------------ wings: two pairs of sheer fairy wings behind her
     WINGS = [
@@ -296,6 +297,7 @@ def check():
     tunic = [p for p in imgs["tunic"].getdata() if p[3]]
     r, g, b, _ = max(set(tunic), key=tunic.count)
     assert r > 200 and g > 190 and b > 150, "dress should be cream"
+    assert imgs["eyes_angry"].tobytes() == imgs["eyes_happy"].tobytes(), "she never glares"
     print("OK")
 
 

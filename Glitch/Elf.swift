@@ -23,6 +23,28 @@ enum Elf {
         set.tunic.cropping(to: CGRect(x: 0, y: $0, width: Sprite.width, height: 2))
     }
 
+    /// She is always happy: the cross, startled and sad sounds the shared brain asks for come out as a giggle.
+    static func voice(_ effect: SoundEffect) -> SoundEffect {
+        [.angry, .surprised, .sad].contains(effect) ? .happy : effect
+    }
+
+    /// The wand's blossom tip at rest (after the lean); a click turns the wand by `flick` about the hand.
+    private static let tip = CGPoint(x: 15, y: 40)
+    static let flick = 0.5
+
+    /// Click: the flowers leave the wand tip, raised by the flick, on a screen-wide overlay so they can fly far.
+    @MainActor static func scatterFlowers(windowOrigin: CGPoint, facingRight: Bool) {
+        let r = CGPoint(x: tip.x - hand.x, y: tip.y - hand.y)
+        let x = hand.x + r.x * cos(flick) - r.y * sin(flick)
+        let y = hand.y + r.x * sin(flick) + r.y * cos(flick) - 2
+        let scale = RobotView.scale
+        let px = (Double(RobotView.padLeft) + x) * scale
+        let local = CGPoint(x: facingRight ? RobotView.canvasSize.width - px : px, y: (Double(RobotView.padTop) + y) * scale)
+        let ground = (Double(RobotView.padTop) + 92) * scale
+        ElfMeadow.openBurst(at: CGPoint(x: windowOrigin.x + local.x, y: windowOrigin.y + RobotView.canvasSize.height - local.y),
+                            drop: ground - local.y, unit: scale * 2)
+    }
+
     static func draw(_ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose) {
         var layer = outer
         layer.opacity = max(0, min(1, pose.reveal))
@@ -87,10 +109,12 @@ enum Elf {
         // goodbye spell: the wand comes up straight, then flicks out as the sparkles leave its tip
         let e = pose.spell
         let lift = e >= 0 ? ElfMeadow.ease(e / 0.3) : 0
-        let wandAngle = e >= 0 ? 0.5 * lift - 0.85 * ElfMeadow.ease((e - 0.5) / 0.18) : 0
+        // click: a quick flick up and back down
+        let click = pose.cast >= 0 ? sin(.pi * min(1, pose.cast / 0.6)) : 0
+        let wandAngle = e >= 0 ? 0.5 * lift - 0.85 * ElfMeadow.ease((e - 0.5) / 0.18) : flick * click
         put(set.armFarUpper, ctx, dy: breath * 0.5)
-        put(wand, ctx, dy: breath * 0.4 - 2 * lift, angle: wandAngle, pivot: hand)
-        put(set.armFarFore, ctx, dy: breath * 0.4 - 2 * lift)
+        put(wand, ctx, dy: breath * 0.4 - 2 * (lift + click), angle: wandAngle, pivot: hand)
+        put(set.armFarFore, ctx, dy: breath * 0.4 - 2 * (lift + click))
         put(set.cloak, ctx, dy: breath * 0.5)
 
         let headDY = breath * 0.8 + pose.headDY
