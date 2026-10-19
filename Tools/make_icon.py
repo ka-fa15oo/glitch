@@ -3,6 +3,7 @@
 Run from the repo root: python3 Tools/make_icon.py
 """
 import json
+import math
 import os
 
 from PIL import Image, ImageDraw
@@ -54,6 +55,20 @@ GLITCH_EYES = [(3, 10, 10, 14), (14, 10, 21, 14)]                       # wide s
 WIZZY_EYES = [c for cx in (6, 18) for c in ((cx - 1, 8, cx + 1, 16), (cx - 4, 11, cx + 4, 13))]   # two star points
 
 
+def flower_icon(px):
+    """Faelis: five round petals with a gap round the middle, so it reads as a flower at menu bar size."""
+    img = Image.new("RGBA", (240, 240), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    c, ring, petal, heart = 120, 66, 44, 24
+    for i in range(5):
+        a = -math.pi / 2 + i * 2 * math.pi / 5
+        x, y = c + ring * math.cos(a), c + ring * math.sin(a)
+        d.ellipse([x - petal, y - petal, x + petal, y + petal], fill=(0, 0, 0, 255))
+    d.ellipse([c - heart - 12, c - heart - 12, c + heart + 12, c + heart + 12], fill=(0, 0, 0, 0))   # the gap
+    d.ellipse([c - heart, c - heart, c + heart, c + heart], fill=(0, 0, 0, 255))
+    return img.resize((px, px), Image.LANCZOS)
+
+
 def write(folder, images, contents):
     path = os.path.join(ASSETS, folder)
     os.makedirs(path, exist_ok=True)
@@ -75,8 +90,10 @@ for pt in (16, 32, 128, 256, 512):
         entries.append({"idiom": "mac", "size": f"{pt}x{pt}", "scale": f"{scale}x", "filename": name})
 write("AppIcon.appiconset", icons, {"images": entries, "info": {"author": "xcode", "version": 1}})
 
-for folder, cells in (("MenuBarIcon.imageset", GLITCH_EYES), ("MenuBarIconWizzy.imageset", WIZZY_EYES)):
-    write(folder, [("menubar.png", menu_icon(18, cells)), ("menubar@2x.png", menu_icon(36, cells))], {
+for folder, draw in (("MenuBarIcon.imageset", lambda px: menu_icon(px, GLITCH_EYES)),
+                     ("MenuBarIconWizzy.imageset", lambda px: menu_icon(px, WIZZY_EYES)),
+                     ("MenuBarIconFaelis.imageset", flower_icon)):
+    write(folder, [("menubar.png", draw(18)), ("menubar@2x.png", draw(36))], {
         "images": [{"idiom": "universal", "scale": "1x", "filename": "menubar.png"},
                    {"idiom": "universal", "scale": "2x", "filename": "menubar@2x.png"}],
         "info": {"author": "xcode", "version": 1},
@@ -88,4 +105,4 @@ for e in entries:
     pt, scale = int(e["size"].split("x")[0]), int(e["scale"][0])
     with Image.open(os.path.join(ASSETS, "AppIcon.appiconset", e["filename"])) as im:
         assert im.size == (pt * scale, pt * scale), e
-print("ok:", len(entries), "app icon sizes + menu bar icons for Glitch and Wizzy")
+print("ok:", len(entries), "app icon sizes + menu bar icons for Glitch, Wizzy and Faelis")

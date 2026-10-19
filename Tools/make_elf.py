@@ -197,6 +197,10 @@ def build():
     parts["armNearUpper"] = combine("armNearUpper", Layer("cream", [tl((47, 36), (50, 46), 5)], seed=17))
     parts["armNearFore"] = combine("armNearFore", Layer("skin", [tl((50, 46), (46, 54), 3.4)], seed=16),
                                    Layer("skin", [disc(45.5, 55, 2, 10)], seed=19))
+    # the same arm raised high to wave at you (her question call); the forearm waves about the elbow (52, 28)
+    parts["armNearUpperUp"] = combine("armNearUpperUp", Layer("cream", [tl((47, 37), (52, 28), 5)], seed=17))
+    parts["armNearForeUp"] = combine("armNearForeUp", Layer("skin", [tl((52, 29), (54, 18), 3.4)], seed=16),
+                                     Layer("skin", [disc(54.5, 16.5, 2.1, 10)], seed=19))
 
     # ------------------------------------------------------------------ head: face turned left, hair, pointed ear, flower crown
     FACE = [(34, 13), (44, 12), (47, 16), (47, 24), (44, 29), (39, 31), (35, 29), (32, 24), (32, 17)]
@@ -206,7 +210,10 @@ def build():
     EAR = [(46, 17), (54, 11), (49, 21), (46, 22)]
 
     def head_extra(im):
-        put(im, [(34, 24), (35, 25), (36, 25), (37, 24)], LIP)  # she is always smiling
+        put(im, [(35, 25), (39, 25)], rgb("c8706c"))             # smile corners
+        put(im, [(36, 26), (37, 26), (38, 26)], LIP)            # always smiling, lips closed
+        put(im, [(34, 17), (35, 16), (36, 16), (39, 16), (40, 16), (41, 17)], rgb("a8761e"))   # soft raised brows
+        put(im, [(35, 23), (36, 23), (40, 23), (41, 23)], rgb("f2a09a"))                       # rosy cheeks
         put(im, [(33, 22)], RAMPS["skin"][1])                  # nose shadow
         put(im, [(x, 9 + (x - 41) ** 2 // 14) for x in range(32, 51)], RAMPS["leaf"][2])   # crown band
         put(im, [(x, 8 + (x - 41) ** 2 // 14) for x in range(33, 50, 2)], RAMPS["leaf"][3])
@@ -218,21 +225,23 @@ def build():
                             Layer("skin", [EAR], seed=45, grit=0.0), extra=head_extra)
 
     # ------------------------------------------------------------------ eyes: green, moods change lids and brows
-    def eyes(name, iris=(), dark=(), lash=()):
+    def eyes(name, iris=(), dark=(), lash=(), shine=()):
         img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         put(img, lash, LASH)
         put(img, dark, EYE_DARK)
         put(img, iris, EYE)
+        put(img, shine, (236, 255, 240, 255))
         save(img, name)
 
-    eyes("eyes_open", [(35, 20), (40, 20)], [(36, 20), (41, 20)], [(34, 19), (35, 19), (36, 19), (39, 19), (40, 19), (41, 19)])
-    eyes("eyes_half", [(35, 20), (40, 20)], [], [(34, 20), (36, 20), (35, 19), (39, 20), (41, 20), (40, 19)])
+    eyes("eyes_open", [(35, 21), (36, 21), (40, 21), (41, 21)], [(35, 20), (36, 20), (40, 20), (41, 20)],
+         [(33, 18), (34, 19), (35, 19), (36, 19), (39, 19), (40, 19), (41, 19), (42, 18)], [])
+    eyes("eyes_half", [(35, 21), (36, 21), (40, 21), (41, 21)], [], [(34, 20), (35, 20), (36, 20), (39, 20), (40, 20), (41, 20)])
     eyes("eyes_closed", [], [], [(34, 20), (35, 20), (36, 20), (39, 20), (40, 20), (41, 20)])
-    eyes("eyes_wide", [(35, 20), (35, 21), (40, 20), (40, 21)], [(36, 20), (41, 20)],
-         [(34, 18), (35, 18), (36, 18), (39, 18), (40, 18), (41, 18)])
+    eyes("eyes_wide", [(35, 21), (36, 21), (35, 22), (36, 22), (40, 21), (41, 21), (40, 22), (41, 22)], [(35, 20), (36, 20), (40, 20), (41, 20)],
+         [(33, 18), (34, 18), (35, 18), (36, 18), (39, 18), (40, 18), (41, 18), (42, 18)], [])
     # she is never cross: where the others glare, her eyes crinkle in a smile
     for mood in ("eyes_angry", "eyes_happy"):
-        eyes(mood, [], [], [(34, 20), (35, 19), (36, 20), (39, 20), (40, 19), (41, 20)])
+        eyes(mood, [], [], [(34, 21), (35, 20), (36, 20), (37, 21), (39, 21), (40, 20), (41, 20), (42, 21)])
 
     # ------------------------------------------------------------------ wings: two pairs of sheer fairy wings behind her
     WINGS = [
@@ -277,7 +286,8 @@ def build():
 
 # every name SpriteSet(prefix:) reads, plus the wings, the wand and the shadow
 NAMES = ["cape", "thighL", "shinL", "footL", "thighR", "shinR", "footR", "sash", "tunic", "cloak", "pauldronFar",
-         "pauldronNear", "armFarUpper", "armFarFore", "armNearUpper", "armNearFore", "head", "wings", "wand", "shadow"] \
+         "pauldronNear", "armFarUpper", "armFarFore", "armNearUpper", "armNearFore", "head", "wings", "wand", "shadow",
+         "armNearUpperUp", "armNearForeUp"] \
     + ["eyes_" + k for k in ("open", "closed", "half", "happy", "angry", "wide")]
 VISIBLE = ["thighL", "thighR", "shinL", "shinR", "footL", "footR", "cape", "tunic", "cloak", "head", "armFarUpper", "armFarFore", "armNearUpper", "armNearFore", "wings", "wand",
            "eyes_open"]

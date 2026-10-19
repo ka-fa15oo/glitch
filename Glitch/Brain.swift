@@ -318,6 +318,7 @@ final class Brain {
     /// Which constellation showing (see Mage) already had its sound.
     private var heardConstellation = -1.0
     private var feastStart: Double?, misfireStart: Double?
+    private var lastCall = -10.0        // Faelis: when her question call last rang
     private var walkPhase = 0.0
     private var walkAmount = 0.0
     private var facingRight = false
@@ -684,7 +685,7 @@ final class Brain {
         } else if sentinelHold != .none, isKnight {
             applySentinel(now, to: &pose)
         }
-        if Mage.isSelected { applyMageSentinel(now, carried: carried, to: &pose) }
+        if !isKnight { applyCasterSentinel(now, carried: carried, to: &pose) }
         if let a = appearStart {
             let appeared = now - a
             if appeared < 2.5 {
@@ -717,7 +718,7 @@ final class Brain {
         pose.redSparks = redSparks
         var arriving = 0
         if let a = action, a.kind == .finished, now - a.start < 2.05 { arriving = 1 }
-        if let f = feastStart, now - f < Mage.feastSettles { arriving = 1 }
+        if let f = feastStart, now - f < (Elf.isSelected ? Elf.bloomSettles : Mage.feastSettles) { arriving = 1 }
         pose.goldSparks = max(0, goldSparks - arriving)
         // the constellation runs on the wall clock in Mage; chime once as its first star is set, if Wizzy is still
         if Mage.isSelected, let start = Mage.constellationStart(), start != heardConstellation {
@@ -1193,7 +1194,12 @@ extension Brain {
     /// Wizzy instead casts with the staff: a feast of stars and a chime, one gold star joins the others.
     func playFinished(at now: Double = CACurrentMediaTime()) {
         if Mage.isSelected { feastStart = now; onSound?(.chime); return }
-        if Elf.isSelected { return }   // Faelis has no sentinel reactions yet
+        // Faelis waves her wand: a bloom and a shower of flowers
+        if Elf.isSelected {
+            feastStart = now; onSound?(.chime)
+            Elf.scatterFlowers(windowOrigin: windowOrigin(), facingRight: facingRight)
+            return
+        }
         start(.finished, at: now, silent: true)
     }
 
@@ -1201,7 +1207,7 @@ extension Brain {
     /// Wizzy's spell misfires instead: a broken puff of smoke and sparks from the staff, and a flinch.
     func playError(at now: Double = CACurrentMediaTime()) {
         if Mage.isSelected { misfireStart = now; onSound?(.fizzle); return }
-        if Elf.isSelected { return }
+        if Elf.isSelected { misfireStart = now; onSound?(.wilt); return }   // a few petals wilt and drop
         start(.fumble, at: now, silent: true)
     }
 
@@ -1209,7 +1215,7 @@ extension Brain {
     func remindPermission(at now: Double = CACurrentMediaTime()) {
         guard sentinelHold == .barrier else { return }
         remindStart = now
-        if !Elf.isSelected { onSound?(Mage.isSelected ? .nudge : .clang) }
+        onSound?(isKnight ? .clang : .nudge)
     }
 
     /// Glitch stands still in its sentinel pose; Wizzy keeps drifting, glancing and wandering around its rune or orb.
@@ -1218,22 +1224,31 @@ extension Brain {
     var actionKind: Action? { action?.kind }
 
     /// Wizzy's sentinel moves are overlays on its idle life, so they never block it.
-    private func applyMageSentinel(_ now: Double, carried: Bool, to pose: inout Pose) {
+    /// Wizzy's and Faelis's sentinel moves share these pose slots (rune: Wizzy's rune / Faelis's bud, orb: Wizzy's
+    /// crystal ball / Faelis calling out, feast, misfire); each character draws them its own way.
+    private func applyCasterSentinel(_ now: Double, carried: Bool, to pose: inout Pose) {
         let free = action == nil && !carried
+        let elf = Elf.isSelected
         switch sentinelHold {
         case .none: break
         case .barrier:
             pose.rune = now - holdSince
-            if free { pose.eyeDX = -2 }                       // reads the rune hanging in front of it
+            if free { pose.eyeDX = -2 }                       // reads the rune (looks at the bud) hanging in front
             let r = now - remindStart
             if r >= 0, r < 0.8 { pose.nudge = r }
         case .attend:
             pose.orb = now - holdSince
-            if free { pose.eyeDX = 2; pose.headDY += 0.8; pose.headRot += 0.05 }   // looks down into the ball
+            if elf {
+                // she rises a little and calls out to you, ringing every few seconds until you answer
+                if free { pose.eyeDX = 0; pose.eyes = .happy; pose.bodyDY -= 4 * ease(pose.orb / 0.4) }
+                if now - lastCall > Elf.callEvery { lastCall = now; onSound?(.call) }
+            } else if free {
+                pose.eyeDX = 2; pose.headDY += 0.8; pose.headRot += 0.05   // looks down into the ball
+            }
         }
         if let f = feastStart {
             let e = now - f
-            if e > Mage.feastLength { feastStart = nil } else {
+            if e > (elf ? Elf.bloomLength : Mage.feastLength) { feastStart = nil } else {
                 pose.feast = e
                 if e > 0.3, e < 2.2 { pose.eyes = .happy }
             }
@@ -1242,7 +1257,9 @@ extension Brain {
             let e = now - m
             if e > Mage.misfireLength { misfireStart = nil } else {
                 pose.misfire = e
-                if e < 0.5 { pose.shakeX += sin(e * 60) * 0.8 * (1 - e / 0.5); pose.eyes = .wide }
+                // a flinch; Faelis smiles again straight away
+                if e < 0.5 { pose.shakeX += sin(e * 60) * 0.8 * (1 - e / 0.5) }
+                if elf { pose.eyes = e < 0.3 ? .closed : .happy } else if e < 0.5 { pose.eyes = .wide }
             }
         }
     }
@@ -1256,8 +1273,9 @@ extension Brain {
         walkTarget = nil
         if hold == .barrier {
             flareUntil = now + 0.3
-            if !Elf.isSelected { onSound?(Mage.isSelected ? .rune : .clang) }
+            onSound?(Mage.isSelected ? .rune : Elf.isSelected ? .nudge : .clang)
         }
         if hold == .attend, Mage.isSelected { onSound?(.orb) }
+        if hold == .attend, Elf.isSelected { lastCall = now; onSound?(.call) }
     }
 }

@@ -45,7 +45,7 @@ private struct MenuBarEyes: View {
     @AppStorage(Prefs.character) private var character = "glitch"
 
     var body: some View {
-        Image(character == Mage.id ? "MenuBarIconWizzy" : "MenuBarIcon")
+        Image(character == Mage.id ? "MenuBarIconWizzy" : character == Elf.id ? "MenuBarIconFaelis" : "MenuBarIcon")
             .accessibilityLabel("Glitch")
     }
 }
@@ -568,6 +568,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "orb": pose.orb = e
                 case "feast": pose.feast = e; pose.goldSparks = 2; if e > 0.3, e < 2.2 { pose.eyes = .happy }
                 case "misfire": pose.misfire = e; if e < 0.5 { pose.eyes = .wide }
+                case "call": pose.orb = e; pose.eyes = .happy; pose.bodyDY = -4
+                case "bud": pose.rune = e
+                case "wilt": pose.misfire = e; pose.eyes = e < 0.3 ? .closed : .happy
+                case "bloom": pose.feast = e; pose.eyes = .happy
                 case "spell": pose.spell = e; pose.eyes = .happy; pose.reveal = 1 - ElfMeadow.ease((e - ElfMeadow.spellLength) / 0.5)
                 default: break
                 }

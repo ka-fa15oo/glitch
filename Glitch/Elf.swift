@@ -10,6 +10,9 @@ enum Elf {
     private static let wings = Sprite.loadShared("elf_wings")
     private static let wand = Sprite.loadShared("elf_wand")
     private static let shadow = Sprite.loadShared("elf_shadow")
+    /// The near arm raised to wave at you (question call); the forearm waves about `elbowUp`.
+    private static let armUpper = Sprite.loadShared("elf_armNearUpperUp"), armFore = Sprite.loadShared("elf_armNearForeUp")
+    private static let elbowUp = CGPoint(x: 48, y: 28)
     /// Click area: every part at rest, raised by the 2 px she hovers on average.
     static let hitMask: [Bool] = Sprite.coverage(
         [set.cape, set.thighL, set.shinL, set.footL, set.thighR, set.shinR, set.footR, set.tunic, set.cloak, set.armFarUpper, set.armFarFore, set.armNearUpper, set.armNearFore,
@@ -56,6 +59,10 @@ enum Elf {
         let a = (t + 30).truncatingRemainder(dividingBy: greeneryPeriod)
         return a < greeneryLength ? a : nil
     }
+
+    /// Sentinel timings: her question call rings every `callEvery` s; a finished session's bloom runs `bloomLength` s
+    /// and its yellow flower joins the counters at `bloomSettles`.
+    static let callEvery = 2.5, bloomLength = 2.6, bloomSettles = 1.6
 
     /// Where the wings meet her back (after the lean): they beat about this line.
     private static let wingRoot = 37.0
@@ -121,7 +128,8 @@ enum Elf {
         }
 
         let flutter = 2.2 + 3 * pose.carriedAmount + 4 * pose.fallAmount
-        let busy = max(pose.carriedAmount, pose.fallAmount)
+        let calling = pose.orb >= 0 ? ElfMeadow.ease(pose.orb / 0.3) : 0     // question: she calls out to you
+        let busy = max(pose.carriedAmount, pose.fallAmount, calling)
         var wingCtx = ctx
         wingCtx.translateBy(x: (bx + wingRoot) * unit, y: 0)
         wingCtx.scaleBy(x: wingSpread(t: t, busy: busy), y: 1)
@@ -139,10 +147,14 @@ enum Elf {
         let lift = e >= 0 ? ElfMeadow.ease(e / 0.3) : 0
         // click: a quick flick up and back down
         let click = pose.cast >= 0 ? sin(.pi * min(1, pose.cast / 0.6)) : 0
-        let wandAngle = e >= 0 ? 0.5 * lift - 0.85 * ElfMeadow.ease((e - 0.5) / 0.18) : flick * click
+        // session finished: the same flick, bigger; error: the wand droops as the petals wilt
+        let bloom = pose.feast >= 0 ? sin(.pi * min(1, pose.feast / 0.7)) : 0
+        let droop = pose.misfire >= 0 ? ElfMeadow.ease(pose.misfire / 0.1) * (1 - ElfMeadow.ease((pose.misfire - 0.8) / 0.4)) : 0
+        let wave = max(click, bloom)
+        let wandAngle = e >= 0 ? 0.5 * lift - 0.85 * ElfMeadow.ease((e - 0.5) / 0.18) : flick * wave - 0.35 * droop
         put(set.armFarUpper, ctx, dy: breath * 0.5)
-        put(wand, ctx, dy: breath * 0.4 - 2 * (lift + click), angle: wandAngle, pivot: hand)
-        put(set.armFarFore, ctx, dy: breath * 0.4 - 2 * (lift + click))
+        put(wand, ctx, dy: breath * 0.4 - 2 * (lift + wave), angle: wandAngle, pivot: hand)
+        put(set.armFarFore, ctx, dy: breath * 0.4 - 2 * (lift + wave))
         put(set.cloak, ctx, dy: breath * 0.5)
 
         let headDY = breath * 0.8 + pose.headDY
@@ -150,9 +162,101 @@ enum Elf {
         if let eyes = set.eyes[pose.eyes] {
             put(eyes, ctx, dx: Double(pose.eyeDX), dy: headDY, angle: pose.headRot, pivot: neck)
         }
-        put(set.armNearUpper, ctx, dy: breath * 0.5)
-        put(set.armNearFore, ctx, dy: breath * 0.5)
+        if calling > 0.5 {
+            // "over here!": the hand high above her head, waving
+            put(armUpper, ctx, dy: breath * 0.5)
+            put(armFore, ctx, dy: breath * 0.5, angle: 0.3 * sin(t * 2 * .pi * 2.2), pivot: elbowUp)
+        } else {
+            put(set.armNearUpper, ctx, dy: breath * 0.5)
+            put(set.armNearFore, ctx, dy: breath * 0.5)
+        }
         if pose.spell >= 0 { drawSpell(ctx, unit: unit, e: pose.spell, dx: bx, dy: by) }
+
+        let marks = Marks(unit: unit, dx: bx, dy: by)
+        if calling > 0 { marks.halo(ctx, age: pose.orb, strength: calling) }
+        if pose.rune >= 0 { marks.bud(ctx, age: pose.rune, nudge: pose.nudge, t: t) }
+        if pose.misfire >= 0 { marks.wilt(ctx, from: tip, e: pose.misfire) }
+        marks.counters(ctx, around: tip, red: pose.redSparks, gold: pose.goldSparks)
+    }
+
+    /// Pixel drawings for the sentinel, all following the floating body: the waiting bud, the golden halo of her call,
+    /// the wilting petals of an error, and the red bud / yellow flower counters above her wand.
+    private struct Marks {
+        let unit: CGFloat, dx: Double, dy: Double
+        static let rose = Color(red: 0.93, green: 0.36, blue: 0.45), roseLight = Color(red: 0.98, green: 0.62, blue: 0.68)
+        static let gold = Color(red: 1.0, green: 0.85, blue: 0.29), goldDeep = Color(red: 0.91, green: 0.62, blue: 0.19)
+
+        func cell(_ path: inout Path, _ x: Double, _ y: Double) {
+            path.addRect(CGRect(x: (x + dx).rounded() * unit, y: (y + dy).rounded() * unit, width: unit, height: unit))
+        }
+
+        /// Rings of warm light that swell out from her and fade, again and again while she calls.
+        func halo(_ c: GraphicsContext, age: Double, strength: Double) {
+            for k in 0 ..< 2 {
+                let p = (age * 0.8 + Double(k) * 0.5).truncatingRemainder(dividingBy: 1)
+                let rx = 18 + 26 * p, ry = 30 + 30 * p
+                let rect = CGRect(x: (36 + dx - rx) * unit, y: (55 + dy - ry) * unit, width: 2 * rx * unit, height: 2 * ry * unit)
+                c.stroke(Path(ellipseIn: rect), with: .color(Self.gold.opacity(0.65 * (1 - p) * strength)), lineWidth: unit)
+            }
+        }
+
+        /// A closed rose-red bud hanging in the air in front of her, glowing softly; a reminder makes it tremble and flare.
+        func bud(_ c: GraphicsContext, age: Double, nudge: Double, t: Double) {
+            let show = ElfMeadow.ease(age / 0.4)
+            let shake = nudge >= 0 ? sin(nudge * 40) * 1.5 * (1 - nudge / 0.8) : 0
+            let flare = nudge >= 0 ? 1 - nudge / 0.8 : 0
+            let x = 5 + shake, y = 44 + sin(t * 2) * 1.2
+            var c = c
+            c.opacity = show
+            let r = (5 + 2 * flare + sin(t * 3) * 0.6) * unit
+            let center = CGPoint(x: (x + dx) * unit, y: (y - 1.5 + dy) * unit)
+            c.fill(Path(ellipseIn: CGRect(x: center.x - r * 1.6, y: center.y - r * 1.6, width: r * 3.2, height: r * 3.2)),
+                   with: .radialGradient(Gradient(colors: [Self.roseLight.opacity(0.55 + 0.35 * flare), .clear]),
+                                         center: center, startRadius: 0, endRadius: r * 1.6))
+            var petal = Path(), light = Path(), green = Path()
+            for (ox, oy) in [(0.0, -4.0), (-1, -3), (0, -3), (1, -3), (-2, -2), (-1, -2), (0, -2), (1, -2), (2, -2),
+                             (-2, -1), (0, -1), (1, -1), (2, -1), (-2, 0), (-1, 0), (0, 0), (1, 0), (2, 0)] {
+                cell(&petal, x + ox, y + oy)
+            }
+            cell(&light, x - 1, y - 1); cell(&light, x - 1, y - 2)
+            for (ox, oy) in [(-2.0, 1.0), (-1, 1), (1, 1), (2, 1), (0, 1), (0, 2), (0, 3), (0, 4), (1, 3)] { cell(&green, x + ox, y + oy) }
+            c.fill(petal, with: .color(Self.rose))
+            c.fill(light, with: .color(Self.roseLight))
+            c.fill(green, with: .color(ElfMeadow.leaf))
+        }
+
+        /// A few brown, faded petals drop from the drooping wand tip and fade.
+        func wilt(_ c: GraphicsContext, from tip: CGPoint, e: Double) {
+            var brown = Path(), pale = Path()
+            for i in 0 ..< 6 {
+                let x = tip.x - 4 + Double(i) * 1.6 + sin(e * 5 + Double(i)) * 2, y = tip.y + 4 + e * 14 + Double(i % 3) * 2
+                if i % 2 == 0 { cell(&brown, x, y) } else { cell(&pale, x, y) }
+            }
+            var c = c
+            c.opacity = 1 - ElfMeadow.ease((e - 0.8) / 0.6)
+            c.fill(brown, with: .color(Color(red: 0.55, green: 0.40, blue: 0.25)))
+            c.fill(pale, with: .color(Color(red: 0.74, green: 0.68, blue: 0.55)))
+        }
+
+        /// Red buds (waiting) then yellow flowers (finished) along a small arc above the wand tip, wrapping to a second row.
+        func counters(_ c: GraphicsContext, around tip: CGPoint, red: Int, gold: Int) {
+            var rose = Path(), stem = Path(), petals = Path(), hearts = Path()
+            for i in 0 ..< min(red + gold, 14) {
+                let row = i / 7, k = Double(i % 7)
+                let a = -.pi * (0.92 - k * 0.14), r = 8.0 + Double(row) * 4
+                let x = (tip.x + cos(a) * r).rounded(), y = (tip.y - 2 + sin(a) * r).rounded()
+                if i < red {
+                    cell(&rose, x, y); cell(&rose, x, y - 1); cell(&stem, x, y + 1)
+                } else {
+                    cell(&hearts, x, y)
+                    for (ox, oy) in [(-1.0, 0.0), (1, 0), (0, -1), (0, 1)] { cell(&petals, x + ox, y + oy) }
+                }
+            }
+            c.fill(stem, with: .color(ElfMeadow.leaf))
+            c.fill(rose, with: .color(Self.rose))
+            c.fill(petals, with: .color(Self.gold))
+            c.fill(hearts, with: .color(Self.goldDeep))
+        }
     }
 
     /// Now and then a few motes of light drift down from one wing tip and fade.
