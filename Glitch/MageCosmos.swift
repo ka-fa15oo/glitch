@@ -42,21 +42,21 @@ enum MageCosmos {
                 }
                 let fade = 1 - ease((age - rainLength + 0.7) / 0.7)
                 guard fade > 0 else { return }
-                let count = 340
+                let count = 720
                 for k in 0 ..< count {
-                    // most of the rain falls in a column over the landing spot, some across the rest of the sky
-                    let wide = k % 5 == 0
-                    let spread = wide ? size.width * 0.9 : 300.0
-                    let x0 = landing.x + (random() + random() - 1) * spread
-                    let delay = pow(random(), 0.8) * 1.2              // it thickens, then thins
-                    let speed = 900 + 700 * random()
-                    let slant = -0.32
+                    // every star falls onto the spot where Wizzy takes shape, landing all over its body, so the
+                    // falling light thickens into the figure instead of scattering across the screen
+                    let hit = ground - 6 - pow(random(), 0.8) * 176                // somewhere from the hem to the hood
+                    let across = (random() + random() - 1) * 34 * (0.6 + 0.4 * (ground - hit) / 176)
+                    let delay = 0.1 + pow(random(), 0.9) * 1.6                    // builds up, peaks as it gathers
+                    let speed = 1000 + 600 * random()
+                    let slant = -0.18
                     let tau = age - delay
                     if tau < 0 { continue }
                     let startY = -30.0
                     let y = startY + speed * tau
+                    let x0 = landing.x + across - slant * (hit - startY)          // so it lands right on the spot
                     let x = x0 + slant * speed * tau
-                    let hit = ground - random() * 26                   // lands somewhere along the ground line
                     let big = k % 6 == 0
                     let tone = big ? 3 : (k % 3 == 0 ? 2 : 1)
                     if y < hit {
@@ -70,6 +70,7 @@ enum MageCosmos {
                     } else {
                         // landed: a flash, then it fades
                         let since = (y - hit) / speed
+                        let x = landing.x + across                                    // where it landed, not drifting on
                         if since < 0.3 {
                             px(2, x, hit); px(big ? 3 : 1, x + unit, hit); px(1, x - unit, hit); px(0, x, hit - unit)
                             if since < 0.12 { px(0, x + 2 * unit, hit); px(0, x - 2 * unit, hit); px(0, x, hit - 2 * unit) }
