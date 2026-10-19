@@ -6,6 +6,7 @@ enum SoundEffect {
     case starGlide, hole                   // Wizzy's arrival along the star road and its black hole goodbye
     case constellation, dustOut, dustIn, shootingStar   // Wizzy's idle and walking spells, and its click
     case petals                            // Faelis's click: a shower of flowers from her wand
+    case call, wilt                        // Faelis's sentinel: calling out for a question, petals wilting on an error
 }
 
 /// Tiny synthesizer: every effect is generated in code, so there are no audio assets.
@@ -127,6 +128,12 @@ final class SoundBank {
         case .dustIn:      // gathering again: a shimmer coming down to rest
             [Step(from: 2600, to: 1300, duration: 0.5, gain: 0.07),
              Step(from: 1300, to: 1300, duration: 0.2, gain: 0.04)]
+        case .call:   // "over here!": a bright two-note bell
+            [Step(from: 1319, to: 1319, duration: 0.1, gain: 0.18),
+             Step(from: 1760, to: 1760, duration: 0.25, gain: 0.16)]
+        case .wilt:   // a soft falling sigh, never cross
+            [Step(from: 880, to: 740, duration: 0.18, gain: 0.14),
+             Step(from: 740, to: 587, duration: 0.3, gain: 0.1)]
         case .petals:   // a light tinkle, like little bells
             [Step(from: 1568, to: 1568, duration: 0.07, gain: 0.16),
              Step(from: 2093, to: 2093, duration: 0.07, gain: 0.15),
