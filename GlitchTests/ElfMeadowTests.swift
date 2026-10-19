@@ -11,7 +11,7 @@ struct ElfMeadowTests {
         #expect(flowers.count >= 16)
         #expect(Set(flowers.map(\.color)).count >= 4)                      // many colours
         for f in flowers {
-            #expect(abs(f.dx) <= 100)                                       // inside the lit patch
+            #expect(abs(f.dx) <= 160)                                       // inside the lit patch
             #expect(f.bloom >= ElfMeadow.bloomAt && f.bloom < ElfMeadow.riseAt)
         }
     }

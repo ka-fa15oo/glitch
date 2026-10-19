@@ -37,11 +37,11 @@ enum ElfMeadow {
     static let flowers: [Flower] = {
         var rng = SplitMix(seed: 0xF10A)
         func random() -> Double { Double(rng.next() % 10_000) / 10_000 }
-        return (0 ..< 96).map { i in
-            let dx = (random() * 2 - 1) * 95
+        return (0 ..< 140).map { i in
+            let dx = (random() * 2 - 1) * 150
             // the middle sprouts first and it spreads outwards; the middle ones grow tallest, a thicket she hides behind
-            let bloom = bloomAt + 0.4 * min(1, abs(dx) / 95) * (0.7 + 0.3 * random())
-            let height = Int((30 + 18 * random()) * (1 - 0.35 * abs(dx) / 95))
+            let bloom = bloomAt + 0.4 * min(1, abs(dx) / 150) * (0.7 + 0.3 * random())
+            let height = Int((30 + 18 * random()) * (1 - 0.45 * abs(dx) / 150))
             return Flower(dx: dx, dy: random() * 10 - 2, height: height, color: i % petals.count,
                           big: i % 3 == 0, bloom: bloom, lag: 0.3 * random())
         }
@@ -120,7 +120,7 @@ enum ElfMeadow {
             guard reach > 0, fade > 0 else { return }
             let foot = CGPoint(x: landing.x, y: ground)
             let end = CGPoint(x: sun.x + (foot.x - sun.x) * reach, y: sun.y + (foot.y - sun.y) * reach)
-            let spread = 20 + 90 * reach
+            let spread = 20 + 150 * reach
             var beam = Path()
             beam.move(to: CGPoint(x: sun.x - 22, y: sun.y))
             beam.addLine(to: CGPoint(x: sun.x + 22, y: sun.y))
@@ -134,7 +134,7 @@ enum ElfMeadow {
                                                startPoint: sun, endPoint: end))
             let glow = ease((age - bloomAt + 0.2) / 0.5)
             if glow > 0 {
-                let w = 230.0, h = 46.0
+                let w = 360.0, h = 54.0
                 c.fill(Path(ellipseIn: CGRect(x: foot.x - w / 2, y: foot.y - h / 2, width: w, height: h)),
                        with: .radialGradient(Gradient(colors: [Color(red: 1, green: 0.95, blue: 0.7).opacity(0.6 * glow), .clear]),
                                              center: foot, startRadius: 0, endRadius: w / 2))
