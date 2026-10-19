@@ -34,3 +34,8 @@ Which trigger plays which move (click, idle timer, sentinel events) is not decid
 ## Open points
 - Untracked `Tools/make_lady.py` and `previews/lady/` belong to a separate character: do not touch.
 - Build in a new worktree/branch (`elf/still`), since main has unrelated untracked files.
+
+## Arrival and goodbye (user, 2026-10-19)
+- Arrival: a big sun opens high on the screen, its light falls on a patch of ground, colourful flowers bloom there one by one, and Faelis rises from among them; then the light and flowers fade.
+- Goodbye: she raises her wand and flicks it (a spell of sparkles winds round her, with a chime), then turns into many butterflies that fly off across the screen. She does not wave.
+- Both are drawn on a full-screen click-through overlay (`ElfMeadow.swift`), like Wizzy's cosmos (my call).

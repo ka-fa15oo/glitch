@@ -29,23 +29,6 @@ struct ElfCharacterTests {
         #expect(Set(ids).count == ids.count)
     }
 
-    @Test func farewellIsAPlainFadeWithoutBlood() {
-        let (elf, _) = brain()
-        elf.start(.farewell, at: 100)
-        var sawBlood = false
-        var t = 100.0
-        while t < 100 + elf.farewellLength {
-            elf.update(at: t)
-            if elf.current.cocoonAge >= 0 { sawBlood = true }
-            t += 1.0 / 30
-        }
-        #expect(!sawBlood)
-        #expect(elf.current.vortex == 0)
-        #expect(elf.current.reveal < 0.05)
-        #expect(elf.farewellLength <= 2.5)
-        Prefs.d.removeObject(forKey: Prefs.character)
-    }
-
     @Test func sentinelAndClickStartNoKnightMoveOrSound() {
         let (elf, heard) = brain()
         elf.setSentinel(hold: .barrier, redSparks: 1, goldSparks: 0, at: 100)

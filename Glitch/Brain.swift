@@ -241,6 +241,7 @@ final class Brain {
         var reveal = 1.0        // 0...1 how visible the character is (fades in/out inside the blood)
         var dust = -1.0         // mage teleport: seconds since it scattered into star dust; < 0 = none
         var cast = -1.0         // mage click: seconds since it raised the staff for a shooting star; < 0 = none
+        var spell = -1.0        // Faelis goodbye: seconds into her wand spell; < 0 = none
         var rune = -1.0         // mage sentinel: seconds the permission rune has hung in the air; < 0 = none
         var orb = -1.0          // mage sentinel: seconds the crystal ball has glowed in the hand; < 0 = none
         var nudge = -1.0        // mage sentinel: seconds since the rune pulsed as a reminder; < 0 = none
@@ -346,7 +347,9 @@ final class Brain {
     }
 
     private func sound(for kind: Action) -> SoundEffect? {
-        switch kind {
+        // Faelis arrives silently (her chime rings as she rises) and leaves with a chime as she casts
+        if Elf.isSelected, kind == .wake || kind == .farewell { return kind == .farewell ? .chime : nil }
+        return switch kind {
         case .wake: .wake
         case .farewell: .farewell
         case .sad: .sad
@@ -366,6 +369,10 @@ final class Brain {
     func start(_ kind: Action, at now: Double = CACurrentMediaTime(), silent: Bool = false) {
         action = (kind, now)
         if kind == .farewell, Mage.isSelected { beginBlackHole(at: now) }
+        if kind == .farewell, Elf.isSelected {
+            let o = windowOrigin()
+            ElfMeadow.openButterflies(from: CGPoint(x: o.x + 124, y: o.y + 108))
+        }
         if kind == .wake, !beginLanding(at: now) { appearStart = now; action = (.wake, now + 2.4) }   // no room to fall: arrive inside the blood
         if kind == .finished || kind == .fumble || kind == .flourish { finishedStage = 0 }
         if kind == .guard_ { guardKind = Guard.allCases.randomElement()! }
@@ -378,7 +385,7 @@ final class Brain {
         let bounds = walkBounds()
         guard gravityEnabled, bounds.width > 10, bounds.height > 10 else { return false }
         if Mage.isSelected { return beginStarGlide(bounds: bounds, at: now) }
-        if Elf.isSelected { return false }   // she does not fall from the sky: she fades in where she is
+        if Elf.isSelected { return beginBloom(bounds: bounds, at: now) }
         let x = bounds.minX + bounds.width * .random(in: 1.0 / 3 ... 2.0 / 3)
         setWindowOrigin(CGPoint(x: x, y: bounds.maxY + 270))   // 270 pt = more than the window height
         landing = Landing(x: x)
@@ -401,6 +408,18 @@ final class Brain {
         return true
     }
 
+    /// Faelis does not fall either: a sun opens, its light falls on the spot, flowers bloom there and she rises from them.
+    private func beginBloom(bounds: CGRect, at now: Double) -> Bool {
+        let tx = bounds.minX + bounds.width * .random(in: 1.0 / 3 ... 2.0 / 3)
+        let ty = groundY()
+        setWindowOrigin(CGPoint(x: tx, y: ty))
+        landing = Landing(x: tx, glide: Glide(start: now))
+        action = nil
+        drop = .none
+        ElfMeadow.openMeadow(over: CGPoint(x: tx + 124, y: ty + 108))
+        return true
+    }
+
     /// Goodbye: a black hole opens beside Wizzy and it spirals into it, shrinking as it goes.
     private func beginBlackHole(at now: Double) {
         let bounds = walkBounds()
@@ -413,7 +432,7 @@ final class Brain {
     }
 
     /// How long the goodbye takes before the app quits.
-    var farewellLength: Double { Mage.isSelected ? 3.7 : Elf.isSelected ? 2.0 : 4.8 }
+    var farewellLength: Double { Mage.isSelected ? 3.7 : Elf.isSelected ? ElfMeadow.farewellLength : 4.8 }
 
     /// Vorn is the one with the sword and the blood; Wizzy and Faelis have their own ways.
     private var isKnight: Bool { !Mage.isSelected && !Elf.isSelected }
@@ -435,8 +454,12 @@ final class Brain {
         guard var l = landing else { return }
         if let g = l.glide {
             let e = now - g.start
-            if e >= MageCosmos.materializeAt + 0.9, !l.chimed { l.chimed = true; onSound?(.chime) }   // it has taken shape
-            if e > MageCosmos.rainLength - 0.3 { landing = nil; nextAuto = now + .random(in: 6 ... 12); return }
+            let elf = Elf.isSelected
+            let shaped = elf ? ElfMeadow.riseAt + 0.3 : MageCosmos.materializeAt + 0.9
+            if e >= shaped, !l.chimed { l.chimed = true; onSound?(.chime) }   // it has taken shape
+            if e > (elf ? ElfMeadow.arrivalLength - 1.4 : MageCosmos.rainLength - 0.3) {
+                landing = nil; nextAuto = now + .random(in: 6 ... 12); return
+            }
             landing = l
             return
         }
@@ -480,6 +503,15 @@ final class Brain {
     }
 
     private func applyLanding(_ l: Landing, now: Double, to pose: inout Pose) {
+        if let g = l.glide, Elf.isSelected {
+            // unseen while the sun opens and the flowers bloom, then she rises from among them, smiling
+            let e = now - g.start
+            let r = ElfMeadow.rise(e)
+            pose.reveal = r.reveal
+            pose.bodyDY += r.dy
+            pose.eyes = e < ElfMeadow.riseAt + 0.6 ? .closed : .happy
+            return
+        }
         if let g = l.glide { applyStarGlide(g, now: now, to: &pose); return }
         Self.applyStance(.planted, to: &pose)       // diving sword-first
         guard let impact = l.impact else { pose.falling = true; return }
@@ -657,7 +689,14 @@ final class Brain {
         // goodbye: after the kneel a blood storm whirls round it, swallows it and dies down where it stands
         if let h = hole { pose.vortex = holeProgress(h, now: now) }
         // Faelis just fades away while she bows
-        if let a = action, a.kind == .farewell, Elf.isSelected { pose.reveal = 1 - ease((now - a.start - 0.4) / 1.4) }
+        // Faelis casts with her wand, smiling, then is gone into the butterflies (drawn by ElfMeadow)
+        if let a = action, a.kind == .farewell, Elf.isSelected {
+            let e = now - a.start
+            pose.spell = e
+            pose.reveal = 1 - ease((e - ElfMeadow.spellLength) / 0.5)
+            pose.eyes = .happy
+            pose.headDY = 0; pose.headRot = 0                          // head up, no knightly bow
+        }
         if let a = action, a.kind == .farewell, isKnight, now - a.start > 1.8 {
             let e = now - a.start
             pose.cocoonAge = e - 1.8                       // the blood storm rises the moment the knee touches down
