@@ -64,12 +64,14 @@ struct RobotView: View {
         .frame(width: Self.canvasSize.width, height: Self.canvasSize.height)
         .overlay(alignment: .topLeading) {
             if pose.showQuit {
-                // the grave-cross is the knight's; Wizzy shows a crescent moon in his staff star's gold
-                let mage = Mage.isSelected
-                Text(mage ? "☾" : "†")
-                    .font(.system(size: mage ? 18 : 17, weight: .bold, design: .serif))
-                    .foregroundStyle(mage ? Color(red: 0.94, green: 0.85, blue: 0.56) : Color(red: 0.93, green: 0.35, blue: 0.35))
-                    .shadow(color: mage ? Color(red: 0.02, green: 0.03, blue: 0.1) : Color(red: 0.1, green: 0.0, blue: 0.02),
+                // the grave-cross is the knight's; Wizzy shows a crescent moon in his staff star's gold, Faelis a green blossom
+                let mage = Mage.isSelected, elf = Elf.isSelected
+                Text(mage ? "☾" : elf ? "✿" : "†")
+                    .font(.system(size: mage || elf ? 18 : 17, weight: .bold, design: .serif))
+                    .foregroundStyle(mage ? Color(red: 0.94, green: 0.85, blue: 0.56)
+                                     : elf ? Color(red: 0.47, green: 0.76, blue: 0.35) : Color(red: 0.93, green: 0.35, blue: 0.35))
+                    .shadow(color: mage ? Color(red: 0.02, green: 0.03, blue: 0.1)
+                                   : elf ? Color(red: 0.06, green: 0.16, blue: 0.08) : Color(red: 0.1, green: 0.0, blue: 0.02),
                             radius: 0, x: 1, y: 1)
                     .frame(width: Self.quitRect.width, height: Self.quitRect.height)
                     .offset(x: Self.quitRect.minX, y: Self.quitRect.minY)
@@ -199,6 +201,7 @@ struct RobotView: View {
         _ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose
     ) {
         if Mage.isSelected { return Mage.draw(&outer, unit: unit, size: size, t: t, pose: pose) }
+        if Elf.isSelected { return Elf.draw(&outer, unit: unit, size: size, t: t, pose: pose) }
         if pose.cocoonAge >= 0, pose.cocoonHold {
             // goodbye: a blood storm whirls round the kneeling knight and takes it away
             BloodStorm.draw(&outer, unit: unit, age: pose.cocoonAge, t: t, side: .behind)
