@@ -15,7 +15,7 @@ enum Elf {
         [set.cape, set.thighL, set.shinL, set.footL, set.thighR, set.shinR, set.footR, set.tunic, set.cloak, set.armFarUpper, set.armFarFore, set.armNearUpper, set.armNearFore,
          set.head, wings, wand].map { ($0, CGPoint(x: 0, y: -2)) })
     static let hitBounds = Sprite.bounds(of: hitMask)
-    private static let neck = CGPoint(x: 40, y: 33)
+    private static let neck = CGPoint(x: 36, y: 33)   // 4 px left of centre: the sprites lean forward (make_elf.py LEAN)
     /// The dress in 2 px rows so its hem can ripple while gliding.
     private static let dressRows: [CGImage] = stride(from: 0, to: Sprite.height, by: 2).compactMap {
         set.tunic.cropping(to: CGRect(x: 0, y: $0, width: Sprite.width, height: 2))

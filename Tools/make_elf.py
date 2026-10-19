@@ -87,14 +87,30 @@ class Layer:
         return n
 
 
+LEAN, LEAN_PIVOT = 0.1, 70   # she leans forward (to the left): rows above the hips shift left, the legs trail back
+
+
+def lean(img):
+    """Shears the finished part so every pixel stays crisp (a rotation would blur or break the pixel art)."""
+    out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    for y in range(H):
+        out.paste(img.crop((0, y, W, y + 1)), (round(-(LEAN_PIVOT - y) * LEAN), y))
+    return out
+
+
+def save(img, name):
+    img = lean(img)
+    img.save(os.path.join(OUT, PREFIX + name + ".png"))
+    return img
+
+
 def combine(name, *layers, extra=None):
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     for layer in layers:
         img.alpha_composite(layer.img)
     if extra:
         extra(img)
-    img.save(os.path.join(OUT, PREFIX + name + ".png"))
-    return img
+    return save(img, name)
 
 
 def put(img, pts, color):
@@ -117,13 +133,14 @@ def build():
     for n in ("pauldronFar", "pauldronNear", "sash"):
         parts[n] = combine(n)
 
-    # ------------------------------------------------------------------ legs: knees bent, feet tucked back as she hovers; leaf slippers
-    parts["thighL"] = combine("thighL", Layer("skin", [tl((37, 64), (35, 73), 3.6)], seed=50, grit=0.0))
-    parts["shinL"] = combine("shinL", Layer("skin", [tl((35, 72), (42, 79), 3.2)], seed=51, grit=0.0))
-    parts["footL"] = combine("footL", Layer("leaf", [[(40, 77), (44, 78), (48, 83), (44, 84), (40, 81)]], seed=53, grit=0.0))
-    parts["thighR"] = combine("thighR", Layer("skin", [tl((43, 64), (42, 72), 3.8)], seed=55, grit=0.0))
-    parts["shinR"] = combine("shinR", Layer("skin", [tl((42, 71), (50, 76), 3.2)], seed=52, grit=0.0))
-    parts["footR"] = combine("footR", Layer("leaf", [[(48, 74), (52, 75), (56, 80), (52, 81), (48, 78)]], seed=54, grit=0.0))
+    # ------------------------------------------------------------------ legs: slim; the far one reaching down with a pointed toe,
+    # the near one bent back at the knee (so they never cross), like a fairy hovering; small pointed leaf slippers
+    parts["thighL"] = combine("thighL", Layer("skin", [tl((37, 64), (37, 74), 3.0)], seed=50, grit=0.0))
+    parts["shinL"] = combine("shinL", Layer("skin", [tl((37, 73), (37, 83), 2.6)], seed=51, grit=0.0))
+    parts["footL"] = combine("footL", Layer("leaf", [[(35, 82), (39, 82), (38, 86), (36, 89)]], seed=53, grit=0.0))
+    parts["thighR"] = combine("thighR", Layer("skin", [tl((43, 64), (44, 73), 3.2)], seed=55, grit=0.0))
+    parts["shinR"] = combine("shinR", Layer("skin", [tl((44, 72), (51, 77), 2.8)], seed=52, grit=0.0))
+    parts["footR"] = combine("footR", Layer("leaf", [[(50, 75), (53, 76), (56, 80), (52, 80)]], seed=54, grit=0.0))
 
     # ------------------------------------------------------------------ back layer: green cape, long blonde hair over it
     CAPE = [(32, 32), (50, 32), (55, 42), (57, 58), (57, 70), (53, 73), (47, 71), (41, 73), (35, 71), (29, 73),
@@ -206,7 +223,7 @@ def build():
         put(img, lash, LASH)
         put(img, dark, EYE_DARK)
         put(img, iris, EYE)
-        img.save(os.path.join(OUT, PREFIX + name + ".png"))
+        save(img, name)
 
     eyes("eyes_open", [(35, 20), (40, 20)], [(36, 20), (41, 20)], [(34, 19), (35, 19), (36, 19), (39, 19), (40, 19), (41, 19)])
     eyes("eyes_half", [(35, 20), (40, 20)], [], [(34, 20), (36, 20), (35, 19), (39, 20), (41, 20), (40, 19)])
@@ -233,8 +250,7 @@ def build():
             root, tip = poly[0], max(poly, key=lambda q: math.dist(q, poly[0]))
             d.line([root, tip], fill=VEIN)                                # the main vein
         put(img, [(62, 13), (59, 18), (60, 54), (18, 17), (22, 54)], RAMPS["leaf"][4])   # glints
-        img.save(os.path.join(OUT, PREFIX + "wings.png"))
-        return img
+        return save(img, "wings")
 
     parts["wings"] = wings()
 
