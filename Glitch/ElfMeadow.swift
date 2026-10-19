@@ -37,11 +37,11 @@ enum ElfMeadow {
     static let flowers: [Flower] = {
         var rng = SplitMix(seed: 0xF10A)
         func random() -> Double { Double(rng.next() % 10_000) / 10_000 }
-        return (0 ..< 44).map { i in
-            let dx = (random() * 2 - 1) * 90
+        return (0 ..< 96).map { i in
+            let dx = (random() * 2 - 1) * 95
             // the middle sprouts first and it spreads outwards; the middle ones grow tallest, a thicket she hides behind
-            let bloom = bloomAt + 0.4 * min(1, abs(dx) / 90) * (0.7 + 0.3 * random())
-            let height = Int((30 + 18 * random()) * (1 - 0.35 * abs(dx) / 90))
+            let bloom = bloomAt + 0.4 * min(1, abs(dx) / 95) * (0.7 + 0.3 * random())
+            let height = Int((30 + 18 * random()) * (1 - 0.35 * abs(dx) / 95))
             return Flower(dx: dx, dy: random() * 10 - 2, height: height, color: i % petals.count,
                           big: i % 3 == 0, bloom: bloom, lag: 0.3 * random())
         }
@@ -159,6 +159,12 @@ enum ElfMeadow {
                 for k in 0 ..< grown { cell(&stems, x, base - Double(k) * unit) }
                 for k in stride(from: 3, to: grown - 1, by: 5) {                    // leaves on alternate sides
                     cell(&leaves, x + (k % 2 == 0 ? unit : -unit), base - Double(k) * unit)
+                }
+                for k in stride(from: 6, to: grown - 3, by: 6) {                    // side blossoms all the way up
+                    let side = (k / 6) % 2 == 0 ? 2.0 : -2.0, y = base - Double(k) * unit
+                    let tone = (f.color + k / 6) % petals.count
+                    cell(&hearts, x + side * unit, y)
+                    for (dx, dy) in [(-1.0, 0.0), (1, 0), (0, -1), (0, 1)] { cell(&blooms[tone], x + (side + dx) * unit, y + dy * unit) }
                 }
                 let top = base - Double(grown) * unit
                 let open = e - 0.2
