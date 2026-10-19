@@ -250,6 +250,11 @@ final class Brain {
         var rebirth = -1.0      // phoenix arrival: seconds since the ash pile appeared; < 0 = none
         var ash = -1.0          // phoenix goodbye: seconds since it caught fire; < 0 = none
         var quake = -1.0        // phoenix: seconds since it hit the ground in a ring of fire; < 0 = none
+        var aloft = 0.0         // phoenix: 0 = perched with its wings folded ... 1 = in the air
+        var beat = 0.0          // phoenix in the air: 1 = beating its wings, 0 = gliding on them
+        var bank = 0.0          // phoenix: radians, leaning into the turn while it glides
+        var ruffle = -1.0       // phoenix perched: seconds since it began shaking out its wings; < 0 = none
+        var threat = 0.0        // phoenix perched: 0...1 wings raised at the cursor coming close
         var hang = 0.0          // swing angle while carried (radians)
         var hangPivot = CGPoint(x: 39, y: 20)   // sprite point under the cursor
     }
@@ -319,6 +324,9 @@ final class Brain {
     private var teleport: (start: Double, to: CGPoint, moved: Bool)?
     private var castStart: Double?
     private var quakeStart: Double?   // the phoenix's landing ring of fire
+    /// The phoenix flies instead of walking: a long curve over the screen from one perch to the next.
+    private struct Flight { var start: Double; var length: Double; var from, c1, c2, to: CGPoint }
+    private var flight: Flight?
     /// Which constellation showing (see Mage) already had its sound.
     private var heardConstellation = -1.0
     private var feastStart: Double?, misfireStart: Double?
@@ -375,6 +383,7 @@ final class Brain {
 
     func start(_ kind: Action, at now: Double = CACurrentMediaTime(), silent: Bool = false) {
         action = (kind, now)
+        if kind == .farewell { flight = nil }
         if kind == .farewell, Mage.isSelected { beginBlackHole(at: now) }
         if kind == .farewell, Elf.isSelected {
             let o = windowOrigin()
@@ -575,6 +584,7 @@ final class Brain {
         lastMouseX = mouseX
         lastMove = now
         walkTarget = nil
+        flight = nil
     }
 
     /// Double-click: show the close cross for a few seconds; another double-click hides it again.
@@ -643,8 +653,13 @@ final class Brain {
             walkTarget = nil
             teleportAt = nil
         }
-        // wandering
-        if let target = walkTarget {
+        // the phoenix flies its curve; nothing but being grabbed or saying goodbye takes it out of the air
+        if Phoenix.isSelected {
+            if let f = flight { walkTarget = f.to } else if let target = walkTarget { beginFlight(to: target, at: now) }
+        }
+        if let f = flight {
+            stepFlight(f, now: now, to: &pose)
+        } else if let target = walkTarget {
             let origin = windowOrigin()
             let dx = target.x - origin.x, dy = target.y - origin.y
             let dist = hypot(dx, dy)
@@ -718,6 +733,7 @@ final class Brain {
             applySentinel(now, to: &pose)
         }
         if !isKnight { applyCasterSentinel(now, carried: carried, to: &pose) }
+        if Phoenix.isSelected { applyPhoenix(now, carried: carried, dropping: dropping, to: &pose) }
         if let a = appearStart {
             let appeared = now - a
             if appeared < 2.5 {
@@ -859,6 +875,59 @@ final class Brain {
         nextWander = now + 20
     }
 
+    // MARK: - the phoenix in flight
+
+    private func beginFlight(to target: CGPoint, at now: Double) {
+        let bounds = walkBounds(), from = windowOrigin()
+        // two control points anywhere up the screen, so every flight is its own wide swoop
+        func high(_ x: Double) -> CGPoint {
+            CGPoint(x: min(bounds.maxX, max(bounds.minX, x + .random(in: -260 ... 260))),
+                    y: min(bounds.maxY, max(from.y, target.y) + .random(in: 120 ... max(140, bounds.maxY - max(from.y, target.y)))))
+        }
+        let c1 = high(from.x + (target.x - from.x) * 0.25), c2 = high(from.x + (target.x - from.x) * 0.75)
+        let chord = hypot(c1.x - from.x, c1.y - from.y) + hypot(c2.x - c1.x, c2.y - c1.y) + hypot(target.x - c2.x, target.y - c2.y)
+        flight = Flight(start: now, length: max(2.6, Double(chord) * 0.8 / 200), from: from, c1: c1, c2: c2, to: target)
+        onSound?(.whoosh)
+    }
+
+    private func flightPoint(_ f: Flight, _ u: Double) -> CGPoint {
+        let s = ease(u), r = 1 - s
+        let a = r * r * r, b = 3 * r * r * s, c = 3 * r * s * s, d = s * s * s
+        return CGPoint(x: a * f.from.x + b * f.c1.x + c * f.c2.x + d * f.to.x,
+                       y: a * f.from.y + b * f.c1.y + c * f.c2.y + d * f.to.y)
+    }
+
+    /// Moves the window along the curve: strong beats to take off, climb and land, a glide on open wings coming down.
+    private func stepFlight(_ f: Flight, now: Double, to pose: inout Pose) {
+        let e = now - f.start, u = e / f.length
+        guard u < 1 else {
+            setWindowOrigin(f.to)
+            flight = nil
+            walkTarget = nil
+            nextWander = now + .random(in: 20 ... 50) * restScale
+            nextAuto = max(nextAuto, now + 3)
+            return
+        }
+        let p = flightPoint(f, u), ahead = flightPoint(f, min(1, u + 0.02))
+        setWindowOrigin(p)
+        let vx = Double(ahead.x - p.x) / (0.02 * f.length), vy = Double(ahead.y - p.y) / (0.02 * f.length)
+        if abs(vx) > 5 { facingRight = vx > 0 }
+        let climbing = vy > 30, takeoff = e < 0.9, landing = f.length - e < 0.7
+        let burst = vy > -60 && sin(e * 1.4) > 0.8   // a few beats now and then to hold its height
+        pose.beat = climbing || takeoff || landing || burst ? 1 : 0
+        pose.bank = pose.beat > 0.5 ? 0 : max(-0.22, min(0.22, -vx / 900))
+        pose.fling = max(-1, min(1, vx / 300)) * (facingRight ? -1 : 1)
+    }
+
+    /// The phoenix's wings: folded on the perch, open in the air, raised at the cursor, shaken out now and then.
+    private func applyPhoenix(_ now: Double, carried: Bool, dropping: Bool, to pose: inout Pose) {
+        if flight != nil || carried || dropping { pose.aloft = 1; if carried || dropping { pose.beat = 1 }; return }
+        guard landing == nil, action?.kind != .farewell else { return }
+        // proud and wild: it rears up with its wings high when the cursor comes close
+        if mouseNear, sentinelHold == .none { pose.threat = 1 }
+        if let a = action, a.kind == .look, now >= a.start { pose.ruffle = now - a.start }
+    }
+
     private func walkAway(at now: Double) {
         let bounds = walkBounds()
         let origin = windowOrigin()
@@ -897,6 +966,9 @@ final class Brain {
         s.wind += (target.wind - s.wind) * k(3)
         s.squash += (target.squash - s.squash) * fast
         s.fling += (target.fling - s.fling) * slow
+        s.aloft += (target.aloft - s.aloft) * k(7)
+        s.bank += (target.bank - s.bank) * k(3)
+        s.threat += (target.threat - s.threat) * k(6)
         // hands: smooth where they are going, and how free of the hilt they are
         nearW += ((target.nearHand != nil ? 1 : 0) - nearW) * slow
         farW += ((target.farHand != nil ? 1 : 0) - farW) * slow
@@ -926,6 +998,7 @@ final class Brain {
         out.stepAmount = s.stepAmount; out.kick = s.kick
         out.crouch = s.crouch; out.squash = s.squash; out.fling = s.fling
         out.kneel = s.kneel
+        out.aloft = s.aloft; out.bank = s.bank; out.threat = s.threat
         out.wind = s.wind
         out.nearHand = nearW > 0.01 ? nearPos : nil
         out.farHand = farW > 0.01 ? farPos : nil
@@ -941,21 +1014,21 @@ final class Brain {
         if windowOrigin().y > groundY() + 4 {
             drop = .falling(vy: 0)
         } else {
-            drop = .stagger(start: now)
+            drop = Phoenix.isSelected ? .none : .stagger(start: now)
         }
     }
 
     private func stepFall(dt: Double, now: Double) {
         switch drop {
         case .falling(var vy):
-            vy = Self.fallSpeed(vy, dt: dt, gentle: Elf.isSelected)
+            vy = Self.fallSpeed(vy, dt: dt, gentle: Elf.isSelected || Phoenix.isSelected)
             let origin = windowOrigin()
             let y = origin.y - vy * dt
             if y <= groundY() {
                 setWindowOrigin(CGPoint(x: origin.x, y: groundY()))
                 // Faelis floats down on her wings: no thud, no stagger, just a happy little giggle
                 if Elf.isSelected { drop = .none; start(.happy, at: now); return }
-                if Phoenix.isSelected { quakeStart = now }   // it lands in a ring of fire
+                if Phoenix.isSelected { quakeStart = now; drop = .none; onSound?(.whoosh); return }   // it lands in a ring of fire
                 drop = .impact(start: now, strength: min(1, max(0.35, vy / 1500)))
                 onSound?(.thud)
             } else {

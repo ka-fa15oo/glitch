@@ -52,6 +52,27 @@ struct PhoenixCharacterTests {
         Prefs.d.removeObject(forKey: Prefs.character)
     }
 
+    /// It flies where the others walk: up off its perch in a curve over the screen, down onto the next perch.
+    @Test func fliesFromPerchToPerch() {
+        let (phoenix, _) = brain()
+        var origin = CGPoint(x: 500, y: 0)
+        phoenix.windowOrigin = { origin }
+        phoenix.setWindowOrigin = { origin = $0 }
+        phoenix.walkBounds = { CGRect(x: 0, y: 0, width: 1000, height: 700) }
+        phoenix.groundY = { 0 }
+        var box: CGRect? = CGRect(x: 480, y: -20, width: 40, height: 40)   // someone types right where it perches
+        phoenix.keepOut = { box }
+        run(phoenix, from: 300, seconds: 0.1)
+        box = nil
+        var highest = 0.0
+        var t = 300.1
+        while t < 330 { phoenix.update(at: t); highest = max(highest, Double(origin.y)); t += 1.0 / 30 }
+        #expect(highest > 100)                  // it went up into the air ...
+        #expect(origin.y == 0 && abs(origin.x - 500) > 20)   // ... and came down somewhere else
+        #expect(phoenix.current.aloft < 0.1)    // wings folded again
+        Prefs.d.removeObject(forKey: Prefs.character)
+    }
+
     @Test func itsCryReplacesTheKnightsVoice() {
         #expect(Phoenix.voice(.angry) == .shriek && Phoenix.voice(.sad) == .shriek && Phoenix.voice(.happy) == .whoosh)
         #expect(Phoenix.voice(.thud) == .thud)

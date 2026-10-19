@@ -575,6 +575,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "quake": pose.quake = e
                 case "carry": pose.carried = true; pose.carriedAmount = e; pose.fling = 0.8; pose.hang = 0.1
                 case "pcast": pose.cast = e
+                // its flight: "fly:1" beating, "fly:0" gliding (banked), "ruffle:0.4", "threat:1"
+                case "fly": pose.aloft = 1; pose.beat = e; pose.bank = e > 0.5 ? 0 : 0.2; pose.fling = 0.6
+                case "ruffle": pose.ruffle = e
+                case "threat": pose.threat = e
                 case "bud": pose.rune = e
                 case "wilt": pose.misfire = e; pose.eyes = e < 0.3 ? .closed : .happy
                 case "bloom": pose.feast = e; pose.eyes = .happy

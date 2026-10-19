@@ -1,16 +1,34 @@
-"""previews/phoenix/concept.jpg (AI concept) -> pixel-art phoenix, 4 wing-flap frames as Glitch/Sprites/phoenix_flap1..4.png.
+"""previews/phoenix/concept.jpg (AI concept) -> pixel-art phoenix frames in Glitch/Sprites:
+phoenix_flap1..8 (one wing beat), phoenix_glide (wings held open) and phoenix_perch (wings folded at its sides).
 
-Each frame covers the whole window canvas (112x124 art px = Sprite 72x96 plus RobotView padding). Run from the repo root."""
-import os
+The wings are bent, not just turned: each wing pixel swings round its shoulder by an angle that grows towards the tip,
+so the tips trail the stroke like real feathers. Each frame covers the whole window canvas (112x124 art px = Sprite
+72x96 plus RobotView padding). Run from the repo root; `python3 Tools/make_phoenix.py <dir>` writes elsewhere."""
+import math
+import sys
 from collections import deque
 from PIL import Image, ImageEnhance
 
-SRC, OUT = "previews/phoenix/concept.jpg", "Glitch/Sprites"
-SPRITE_W, COLORS = 90, 32
+SRC = "previews/phoenix/concept.jpg"
+OUT = sys.argv[1] if len(sys.argv) > 1 else "Glitch/Sprites"
+SPRITE_W, COLORS, UP = 90, 32, 4  # art width, palette size, supersampling of the warp
 CANVAS = (112, 124)  # RobotView: 22+72+18 wide, 14+96+14 high
-BODY_HALF = 13  # columns either side of the centre that stay put (head, torso, tail)
-ANGLES = [12, 0, -14, 0]  # right wing, degrees counter-clockwise; the left wing gets the opposite
-BOB = [2, 0, -2, 0]
+BODY_X, WING_BOTTOM = 17, 112  # concept px: |x - centre| beyond this and above this row is wing
+SHOULDER_Y = 78
+
+# (root angle, extra angle at the tip, span, thickness, body bob); degrees, + = wing up
+POSES = {
+    "flap1": (18, 10, 1.00, 1.00, 2),     # top of the beat
+    "flap2": (6, 14, 1.02, 1.00, 1),
+    "flap3": (-12, 18, 1.00, 0.96, -1),   # sweeping down, tips trailing up
+    "flap4": (-32, 20, 0.92, 0.92, -2),
+    "flap5": (-48, 14, 0.84, 0.90, -2),   # bottom of the beat
+    "flap6": (-34, -10, 0.80, 0.88, 0),   # pulling back up, tips trailing down
+    "flap7": (-14, -20, 0.84, 0.92, 1),
+    "flap8": (6, -12, 0.92, 0.96, 2),
+    "glide": (-8, 10, 1.04, 1.00, 0),     # held open, tips curling up
+    "perch": (-105, -25, 0.68, 0.90, 3),   # folded down along its sides
+}
 
 im = Image.open(SRC).convert("RGB")
 w, h = im.size
@@ -23,71 +41,89 @@ def is_bg(p):  # near the flat dark backdrop
 
 
 # flood-fill the backdrop from the border so dark outline pixels inside the bird survive
-alpha = Image.new("L", (w, h), 255)
-ap = alpha.load()
-q = deque()
-for x in range(w):
-    q += [(x, 0), (x, h - 1)]
-for y in range(h):
-    q += [(0, y), (w - 1, y)]
+alpha = [[True] * h for _ in range(w)]
+q = deque([(x, 0) for x in range(w)] + [(x, h - 1) for x in range(w)] + [(0, y) for y in range(h)] + [(w - 1, y) for y in range(h)])
 while q:
     x, y = q.popleft()
-    if 0 <= x < w and 0 <= y < h and ap[x, y] == 255 and is_bg(px[x, y]):
-        ap[x, y] = 0
+    if 0 <= x < w and 0 <= y < h and alpha[x][y] and is_bg(px[x, y]):
+        alpha[x][y] = False
         q += [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
 
-rgba = im.copy().convert("RGBA")
-rgba.putalpha(alpha)
-rgba = rgba.crop(rgba.getbbox())
-scale = SPRITE_W / rgba.width
-sprite = rgba.resize((SPRITE_W, round(rgba.height * scale)), Image.LANCZOS)
-
-# hard alpha + fixed palette, so every later rotation stays inside the palette
-a = sprite.getchannel("A").point(lambda v: 255 if v >= 128 else 0)
-rgb = sprite.convert("RGB")
-rgb = ImageEnhance.Brightness(ImageEnhance.Color(ImageEnhance.Contrast(rgb).enhance(1.25)).enhance(1.35)).enhance(1.25)
-pal = rgb.quantize(COLORS, Image.MEDIANCUT, dither=Image.NONE).convert("RGB").convert("RGBA")
-pal.putalpha(a)
-sprite = pal
-# drop stray specks: opaque pixels with fewer than 2 opaque neighbours
-pp = sprite.load()
-sprite_w, sprite_h = sprite.size
-specks = [(x, y) for x in range(sprite_w) for y in range(sprite_h) if pp[x, y][3]
-          and sum(0 <= x + dx < sprite_w and 0 <= y + dy < sprite_h and pp[x + dx, y + dy][3]
-                  for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy) < 2]
-for p in specks:
-    pp[p] = (0, 0, 0, 0)
-
-sw, sh = sprite.size
-cx = sw // 2
-pivot_y = round(sh * 0.42)
-ox, oy = (CANVAS[0] - sw) // 2, (CANVAS[1] - sh) // 2
+xs = [x for x in range(w) for y in range(h) if alpha[x][y]]
+ys = [y for x in range(w) for y in range(h) if alpha[x][y]]
+left, top, right, bottom = min(xs), min(ys), max(xs) + 1, max(ys) + 1
+cx = (left + right) / 2
+scale = SPRITE_W / (right - left)  # concept px -> art px, the same for every frame so the body never moves
+ox = (CANVAS[0] - SPRITE_W) / 2
+oy = (CANVAS[1] - (bottom - top) * scale) / 2
 
 
-cut = round(sh * 0.66)  # below this row (tail, talons) nothing flaps
-base = sprite.copy()
-for x in range(sw):
-    if abs(x - cx) > BODY_HALF:
-        for y in range(cut):
-            base.putpixel((x, y), (0, 0, 0, 0))
+def to_canvas(x, y, bob):
+    return (ox + (x - left) * scale) * UP, (oy + (y - top) * scale + bob) * UP
 
 
-def frame(i):
-    canvas = Image.new("RGBA", CANVAS, (0, 0, 0, 0))
-    canvas.alpha_composite(base, (ox, oy + BOB[i] + 1))
-    # wings: each half, with an overlap into the body band that the body then covers
-    for side, ang in ((1, ANGLES[i]), (-1, -ANGLES[i])):
-        box = (cx - BODY_HALF, 0, sw, cut) if side == 1 else (0, 0, cx + BODY_HALF, cut)
-        wing = Image.new("RGBA", (sw, sh), (0, 0, 0, 0))
-        wing.paste(sprite.crop(box), (box[0], 0))
-        wing = wing.rotate(ang, resample=Image.NEAREST, center=(cx + side * BODY_HALF, pivot_y))
-        canvas.alpha_composite(wing, (ox, oy + BOB[i]))
-    body = Image.new("RGBA", (sw, sh), (0, 0, 0, 0))
-    body.paste(sprite.crop((cx - BODY_HALF, 0, cx + BODY_HALF, sh)), (cx - BODY_HALF, 0))
-    canvas.alpha_composite(body, (ox, oy + BOB[i] + 1))
-    return canvas
+def render(pose):
+    root, tip, span, thick, bob = pose
+    big = Image.new("RGBA", (CANVAS[0] * UP, CANVAS[1] * UP), (0, 0, 0, 0))
+    bp = big.load()
+    W, H = big.size
+    step = 1 / (UP * scale * 1.6)  # sample the concept finer than the output grid, so the warp leaves no holes
+
+    def splat(fx, fy, colour):
+        X, Y = int(fx), int(fy)
+        if 0 <= X < W and 0 <= Y < H:
+            bp[X, Y] = colour
+
+    reach = max(cx - left, right - cx)
+    for wing in (False, True):  # wings first, the body is drawn over their roots
+        n = int((right - left) / step)
+        for j in range(int(h / step)):
+            sy = j * step
+            for i in range(n):
+                sx = left + i * step
+                ix, iy = int(sx), int(sy)
+                if ix >= w or iy >= h or not alpha[ix][iy]:
+                    continue
+                is_wing = abs(sx - cx) > BODY_X and sy < WING_BOTTOM
+                if is_wing != wing:
+                    continue
+                colour = px[ix, iy] + (255,)
+                if not wing:
+                    splat(*to_canvas(sx, sy, bob), colour)
+                    continue
+                side = 1 if sx > cx else -1
+                shx = cx + side * BODY_X
+                dx, dy = sx - shx, sy - SHOULDER_Y
+                r = math.hypot(dx, dy)
+                a = math.atan2(dy, dx)
+                turn = math.radians(root + tip * min(1, r / reach))
+                a2 = a - side * turn
+                fx = shx + math.cos(a2) * r * span
+                fy = SHOULDER_Y + math.sin(a2) * r * span
+                fx = shx + (fx - shx) * (0.5 + 0.5 * thick)  # a thinner wing hugs the body
+                splat(*to_canvas(fx, fy, bob), colour)
+    return big
 
 
-for i in range(4):
-    frame(i).save(f"{OUT}/phoenix_flap{i + 1}.png")
-print("sprite", sprite.size, "canvas", CANVAS)
+def finish(big, palette=None):
+    small = big.resize(CANVAS, Image.BOX)
+    a = small.getchannel("A").point(lambda v: 255 if v >= 110 else 0)
+    rgb = small.convert("RGB")
+    rgb = ImageEnhance.Brightness(ImageEnhance.Color(ImageEnhance.Contrast(rgb).enhance(1.25)).enhance(1.35)).enhance(1.25)
+    pal = rgb.quantize(COLORS, Image.MEDIANCUT, dither=Image.NONE) if palette is None else rgb.quantize(palette=palette, dither=Image.NONE)
+    out = pal.convert("RGBA")
+    out.putalpha(a)
+    pp = out.load()  # drop stray specks: opaque pixels with fewer than 2 opaque neighbours
+    cw, ch = out.size
+    specks = [(x, y) for x in range(cw) for y in range(ch) if pp[x, y][3]
+              and sum(0 <= x + ex < cw and 0 <= y + ey < ch and pp[x + ex, y + ey][3]
+                      for ex in (-1, 0, 1) for ey in (-1, 0, 1) if ex or ey) < 2]
+    for p in specks:
+        pp[p] = (0, 0, 0, 0)
+    return out, pal
+
+
+_, palette = finish(render(POSES["flap2"]))  # one shared palette, so no frame shifts colour
+for name, pose in POSES.items():
+    finish(render(pose), palette)[0].save(f"{OUT}/phoenix_{name}.png")
+print("canvas", CANVAS, "frames", len(POSES))
