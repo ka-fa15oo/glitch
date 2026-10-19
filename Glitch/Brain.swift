@@ -378,6 +378,7 @@ final class Brain {
         let bounds = walkBounds()
         guard gravityEnabled, bounds.width > 10, bounds.height > 10 else { return false }
         if Mage.isSelected { return beginStarGlide(bounds: bounds, at: now) }
+        if Elf.isSelected { return false }   // she does not fall from the sky: she fades in where she is
         let x = bounds.minX + bounds.width * .random(in: 1.0 / 3 ... 2.0 / 3)
         setWindowOrigin(CGPoint(x: x, y: bounds.maxY + 270))   // 270 pt = more than the window height
         landing = Landing(x: x)
@@ -412,7 +413,10 @@ final class Brain {
     }
 
     /// How long the goodbye takes before the app quits.
-    var farewellLength: Double { Mage.isSelected ? 3.7 : 4.8 }
+    var farewellLength: Double { Mage.isSelected ? 3.7 : Elf.isSelected ? 2.0 : 4.8 }
+
+    /// Vorn is the one with the sword and the blood; Wizzy and Faelis have their own ways.
+    private var isKnight: Bool { !Mage.isSelected && !Elf.isSelected }
 
     private func holeProgress(_ h: Hole, now: Double) -> Double { pow(ease((now - h.start - 0.8) / 1.8), 1.25) }
 
@@ -533,6 +537,8 @@ final class Brain {
         }
         // only when it is idle: no action, no sentinel pose, not landing, falling or being carried
         guard action == nil, landing == nil, sentinelHold == .none, now - lastMove > 1.0 else { return }
+        // shortcut: Faelis smiles until her flower move is built (a later plan)
+        if Elf.isSelected { start(.happy, at: now); return }
         if case .none = drop { start(.flourish, at: now, silent: true) }
     }
 
@@ -637,17 +643,22 @@ final class Brain {
             } else {
                 apply(current.kind, elapsed: elapsed, to: &pose)
             }
-        } else if sentinelHold != .none, !Mage.isSelected {
+        } else if sentinelHold != .none, isKnight {
             applySentinel(now, to: &pose)
         }
         if Mage.isSelected { applyMageSentinel(now, carried: carried, to: &pose) }
         if let a = appearStart {
             let appeared = now - a
-            if appeared < 2.5 { pose.cocoonAge = appeared; pose.reveal = ease((appeared - 0.55) / 0.9) } else { appearStart = nil }
+            if appeared < 2.5 {
+                if isKnight { pose.cocoonAge = appeared }   // the blood she arrives in is the knight's
+                pose.reveal = ease((appeared - 0.55) / 0.9)
+            } else { appearStart = nil }
         }
         // goodbye: after the kneel a blood storm whirls round it, swallows it and dies down where it stands
         if let h = hole { pose.vortex = holeProgress(h, now: now) }
-        if let a = action, a.kind == .farewell, !Mage.isSelected, now - a.start > 1.8 {
+        // Faelis just fades away while she bows
+        if let a = action, a.kind == .farewell, Elf.isSelected { pose.reveal = 1 - ease((now - a.start - 0.4) / 1.4) }
+        if let a = action, a.kind == .farewell, isKnight, now - a.start > 1.8 {
             let e = now - a.start
             pose.cocoonAge = e - 1.8                       // the blood storm rises the moment the knee touches down
             pose.cocoonHold = true
@@ -709,11 +720,11 @@ final class Brain {
             nextStance = now + .random(in: 45 ... 100)
         }
         // the digital flicker and the sword guard are the knight's; Wizzy only looks around and smiles
-        if now > nextGlitch, !Mage.isSelected {
+        if now > nextGlitch, isKnight {
             start(.glitch, at: now)
             nextGlitch = now + .random(in: 15 ... 40) * restScale
         } else if walkTarget == nil, now > nextAuto {
-            let moves: [Action] = Mage.isSelected ? [.look, .look, .happy] : [.look, .look, .happy, .guard_]
+            let moves: [Action] = isKnight ? [.look, .look, .happy, .guard_] : [.look, .look, .happy]
             start(moves.randomElement()!, at: now)   // no sword swing on its own for now
             nextAuto = now + .random(in: 10 ... 25) * restScale
         } else if walkTarget == nil, !mouseNear, now > nextWander {
@@ -1130,6 +1141,7 @@ extension Brain {
     /// Wizzy instead casts with the staff: a feast of stars and a chime, one gold star joins the others.
     func playFinished(at now: Double = CACurrentMediaTime()) {
         if Mage.isSelected { feastStart = now; onSound?(.chime); return }
+        if Elf.isSelected { return }   // Faelis has no sentinel reactions yet
         start(.finished, at: now, silent: true)
     }
 
@@ -1137,6 +1149,7 @@ extension Brain {
     /// Wizzy's spell misfires instead: a broken puff of smoke and sparks from the staff, and a flinch.
     func playError(at now: Double = CACurrentMediaTime()) {
         if Mage.isSelected { misfireStart = now; onSound?(.fizzle); return }
+        if Elf.isSelected { return }
         start(.fumble, at: now, silent: true)
     }
 
@@ -1144,11 +1157,11 @@ extension Brain {
     func remindPermission(at now: Double = CACurrentMediaTime()) {
         guard sentinelHold == .barrier else { return }
         remindStart = now
-        onSound?(Mage.isSelected ? .nudge : .clang)
+        if !Elf.isSelected { onSound?(Mage.isSelected ? .nudge : .clang) }
     }
 
     /// Glitch stands still in its sentinel pose; Wizzy keeps drifting, glancing and wandering around its rune or orb.
-    var idleLifeRuns: Bool { sentinelHold == .none || Mage.isSelected }
+    var idleLifeRuns: Bool { sentinelHold == .none || !isKnight }
 
     var actionKind: Action? { action?.kind }
 
@@ -1191,7 +1204,7 @@ extension Brain {
         walkTarget = nil
         if hold == .barrier {
             flareUntil = now + 0.3
-            onSound?(Mage.isSelected ? .rune : .clang)
+            if !Elf.isSelected { onSound?(Mage.isSelected ? .rune : .clang) }
         }
         if hold == .attend, Mage.isSelected { onSound?(.orb) }
     }

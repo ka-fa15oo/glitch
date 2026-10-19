@@ -42,7 +42,7 @@ final class SoundBank {
         // Sound tab: mute, volume and per-group switches are read on every play, so changes apply at once
         guard !Prefs.d.bool(forKey: Prefs.muted), SoundGroup.allows(effect) else { return }
         // Wizzy carries no sword: the knight's metal sounds never play for it, whoever asks for them
-        if Mage.isSelected, [.clang, .scrape, .swish].contains(effect) { return }
+        if Mage.isSelected || Elf.isSelected, [.clang, .scrape, .swish].contains(effect) { return }
         engine.mainMixerNode.outputVolume = Float(Prefs.d.double(forKey: Prefs.volume))
         if !engine.isRunning { try? engine.start() }
         guard engine.isRunning else { return }
