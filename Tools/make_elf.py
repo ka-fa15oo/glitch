@@ -113,13 +113,19 @@ def build():
     parts = {}
     os.makedirs(OUT, exist_ok=True)
 
-    # legs hidden under the long dress (she glides like Wizzy), no pauldrons, no sash
-    for n in ("thighL", "shinL", "footL", "thighR", "shinR", "footR", "pauldronFar", "pauldronNear", "sash"):
+    # thighs hidden under the short dress, no pauldrons, no sash
+    for n in ("thighL", "thighR", "pauldronFar", "pauldronNear", "sash"):
         parts[n] = combine(n)
 
+    # ------------------------------------------------------------------ legs: bare, slim, dangling as she hovers; leaf slippers
+    parts["shinL"] = combine("shinL", Layer("skin", [tl((37, 64), (36, 84), 3.4)], seed=51, grit=0.0))
+    parts["shinR"] = combine("shinR", Layer("skin", [tl((43, 64), (44, 83), 3.6)], seed=52, grit=0.0))
+    parts["footL"] = combine("footL", Layer("leaf", [[(34, 82), (38, 82), (38, 86), (35, 89), (33, 88)]], seed=53, grit=0.0))
+    parts["footR"] = combine("footR", Layer("leaf", [[(42, 81), (46, 81), (46, 85), (43, 89), (41, 88)]], seed=54, grit=0.0))
+
     # ------------------------------------------------------------------ back layer: green cape, long blonde hair over it
-    CAPE = [(32, 32), (50, 32), (55, 42), (57, 62), (58, 84), (54, 88), (48, 86), (42, 88), (36, 86), (30, 88),
-            (27, 86), (27, 66), (28, 48), (29, 38)]
+    CAPE = [(32, 32), (50, 32), (55, 42), (57, 58), (57, 70), (53, 73), (47, 71), (41, 73), (35, 71), (29, 73),
+            (27, 70), (27, 58), (28, 48), (29, 38)]
     HAIR = [(41, 8), (50, 9), (54, 15), (55, 28), (56, 44), (55, 58), (52, 65), (48, 60), (47, 44), (45, 30)]
 
     def cape_extra(im):
@@ -133,8 +139,7 @@ def build():
 
     # ------------------------------------------------------------------ dress: cream, green belt and leafy hem
     NECK = [(37, 27), (42, 27), (42, 36), (37, 36)]
-    DRESS = [(34, 34), (46, 34), (48, 44), (47, 54), (50, 66), (53, 80), (54, 88), (26, 88), (27, 80), (30, 66),
-             (33, 54), (32, 44)]
+    DRESS = [(34, 34), (46, 34), (48, 44), (47, 54), (50, 60), (53, 68), (27, 68), (30, 60), (33, 54), (32, 44)]
 
     def dress_extra(im):
         outline = RAMPS["cream"][0]
@@ -142,14 +147,14 @@ def build():
             for y in (53, 54):                                 # green belt
                 if im.getpixel((x, y))[3] and im.getpixel((x, y)) != outline:
                     im.putpixel((x, y), RAMPS["leaf"][3] if y == 53 else RAMPS["leaf"][1])
-            for y in range(83, 88):                            # hem: green band with a leaf edge
+            for y in range(63, 68):                            # hem: green band with a leaf edge
                 px = im.getpixel((x, y))
-                if px[3] and px != outline and (y > 84 or (y == 84 and x % 3) or (y == 83 and x % 3 == 1)):
-                    im.putpixel((x, y), RAMPS["leaf"][2] if y < 86 else RAMPS["leaf"][1])
+                if px[3] and px != outline and (y > 64 or (y == 64 and x % 3) or (y == 63 and x % 3 == 1)):
+                    im.putpixel((x, y), RAMPS["leaf"][2] if y < 66 else RAMPS["leaf"][1])
         put(im, [(39, 52), (40, 51), (40, 55), (41, 56)], RAMPS["leaf"][3])   # little leaves on the belt
         put(im, [(40, 53), (40, 54)], HEART)                                    # its gold clasp
         put(im, [(x, 35) for x in range(36, 44)], RAMPS["leaf"][2])             # green neckline trim
-        for y in range(58, 82, 6):                             # a thin vine down the skirt front
+        for y in (57,):                                        # a sprig of vine on the skirt front
             put(im, [(38, y), (37, y + 1), (38, y + 2), (39, y + 3)], RAMPS["leaf"][1])
             put(im, [(36, y + 1)], RAMPS["leaf"][3])
 
@@ -255,7 +260,7 @@ def build():
 NAMES = ["cape", "thighL", "shinL", "footL", "thighR", "shinR", "footR", "sash", "tunic", "cloak", "pauldronFar",
          "pauldronNear", "armFarUpper", "armFarFore", "armNearUpper", "armNearFore", "head", "wings", "wand", "shadow"] \
     + ["eyes_" + k for k in ("open", "closed", "half", "happy", "angry", "wide")]
-VISIBLE = ["cape", "tunic", "cloak", "head", "armFarUpper", "armFarFore", "armNearUpper", "armNearFore", "wings", "wand",
+VISIBLE = ["shinL", "shinR", "footL", "footR", "cape", "tunic", "cloak", "head", "armFarUpper", "armFarFore", "armNearUpper", "armNearFore", "wings", "wand",
            "eyes_open"]
 
 
@@ -281,7 +286,7 @@ if __name__ == "__main__":
         check()
         sys.exit()
     parts = build()
-    order = ["wings", "cape", "tunic", "armFarUpper", "wand", "armFarFore", "cloak", "head", "armNearUpper", "armNearFore"]
+    order = ["wings", "cape", "shinL", "shinR", "footL", "footR", "tunic", "armFarUpper", "wand", "armFarFore", "cloak", "head", "armNearUpper", "armNearFore"]
     canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     canvas.alpha_composite(parts["shadow"])
     for n in order:

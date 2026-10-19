@@ -9,7 +9,7 @@ A third character that is the opposite of Vorn's gothic mood: bright, green, cal
 - Female elf queen, long blonde hair.
 - Crown woven from flowers (a few green leaves beside them: my call).
 - Green eyes.
-- Cream dress with green accents: hem, belt, cape (where the green goes: my call).
+- Short cream dress (to the knee) with green accents: hem, belt, short cape; bare legs and green leaf slippers, dangling as she hovers (user, 2026-10-19; hovering instead of walking: my call).
 - Slim, tall, pointed ears, noble and quiet, not chubby (my call, from Wizzy's "keep it fit" feedback).
 - Fairy-like, with two pairs of sheer green-tinted wings behind her; no tall staff; a small wand with a blossom tip in her far hand (user, 2026-10-19).
 - Green is the dominant colour of the whole figure and its effects.
