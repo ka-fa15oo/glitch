@@ -113,15 +113,17 @@ def build():
     parts = {}
     os.makedirs(OUT, exist_ok=True)
 
-    # thighs hidden under the short dress, no pauldrons, no sash
-    for n in ("thighL", "thighR", "pauldronFar", "pauldronNear", "sash"):
+    # no pauldrons, no sash
+    for n in ("pauldronFar", "pauldronNear", "sash"):
         parts[n] = combine(n)
 
-    # ------------------------------------------------------------------ legs: bare, slim, dangling as she hovers; leaf slippers
-    parts["shinL"] = combine("shinL", Layer("skin", [tl((37, 64), (36, 84), 3.4)], seed=51, grit=0.0))
-    parts["shinR"] = combine("shinR", Layer("skin", [tl((43, 64), (44, 83), 3.6)], seed=52, grit=0.0))
-    parts["footL"] = combine("footL", Layer("leaf", [[(34, 82), (38, 82), (38, 86), (35, 89), (33, 88)]], seed=53, grit=0.0))
-    parts["footR"] = combine("footR", Layer("leaf", [[(42, 81), (46, 81), (46, 85), (43, 89), (41, 88)]], seed=54, grit=0.0))
+    # ------------------------------------------------------------------ legs: knees bent, feet tucked back as she hovers; leaf slippers
+    parts["thighL"] = combine("thighL", Layer("skin", [tl((37, 64), (35, 73), 3.6)], seed=50, grit=0.0))
+    parts["shinL"] = combine("shinL", Layer("skin", [tl((35, 72), (42, 79), 3.2)], seed=51, grit=0.0))
+    parts["footL"] = combine("footL", Layer("leaf", [[(40, 77), (44, 78), (48, 83), (44, 84), (40, 81)]], seed=53, grit=0.0))
+    parts["thighR"] = combine("thighR", Layer("skin", [tl((43, 64), (42, 72), 3.8)], seed=55, grit=0.0))
+    parts["shinR"] = combine("shinR", Layer("skin", [tl((42, 71), (50, 76), 3.2)], seed=52, grit=0.0))
+    parts["footR"] = combine("footR", Layer("leaf", [[(48, 74), (52, 75), (56, 80), (52, 81), (48, 78)]], seed=54, grit=0.0))
 
     # ------------------------------------------------------------------ back layer: green cape, long blonde hair over it
     CAPE = [(32, 32), (50, 32), (55, 42), (57, 58), (57, 70), (53, 73), (47, 71), (41, 73), (35, 71), (29, 73),
@@ -260,7 +262,7 @@ def build():
 NAMES = ["cape", "thighL", "shinL", "footL", "thighR", "shinR", "footR", "sash", "tunic", "cloak", "pauldronFar",
          "pauldronNear", "armFarUpper", "armFarFore", "armNearUpper", "armNearFore", "head", "wings", "wand", "shadow"] \
     + ["eyes_" + k for k in ("open", "closed", "half", "happy", "angry", "wide")]
-VISIBLE = ["shinL", "shinR", "footL", "footR", "cape", "tunic", "cloak", "head", "armFarUpper", "armFarFore", "armNearUpper", "armNearFore", "wings", "wand",
+VISIBLE = ["thighL", "thighR", "shinL", "shinR", "footL", "footR", "cape", "tunic", "cloak", "head", "armFarUpper", "armFarFore", "armNearUpper", "armNearFore", "wings", "wand",
            "eyes_open"]
 
 
@@ -286,7 +288,7 @@ if __name__ == "__main__":
         check()
         sys.exit()
     parts = build()
-    order = ["wings", "cape", "shinL", "shinR", "footL", "footR", "tunic", "armFarUpper", "wand", "armFarFore", "cloak", "head", "armNearUpper", "armNearFore"]
+    order = ["wings", "cape", "thighL", "shinL", "footL", "thighR", "shinR", "footR", "tunic", "armFarUpper", "wand", "armFarFore", "cloak", "head", "armNearUpper", "armNearFore"]
     canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     canvas.alpha_composite(parts["shadow"])
     for n in order:

@@ -12,7 +12,7 @@ enum Elf {
     private static let shadow = Sprite.loadShared("elf_shadow")
     /// Click area: every part at rest, raised by the 2 px she hovers on average.
     static let hitMask: [Bool] = Sprite.coverage(
-        [set.cape, set.shinL, set.footL, set.shinR, set.footR, set.tunic, set.cloak, set.armFarUpper, set.armFarFore, set.armNearUpper, set.armNearFore,
+        [set.cape, set.thighL, set.shinL, set.footL, set.thighR, set.shinR, set.footR, set.tunic, set.cloak, set.armFarUpper, set.armFarFore, set.armNearUpper, set.armNearFore,
          set.head, wings, wand].map { ($0, CGPoint(x: 0, y: -2)) })
     static let hitBounds = Sprite.bounds(of: hitMask)
     private static let neck = CGPoint(x: 40, y: 33)
@@ -77,10 +77,10 @@ enum Elf {
         let flutter = 2.2 + 3 * pose.carriedAmount + 4 * pose.fallAmount
         put(wings, ctx, dy: breath * 0.6)
         rows(set.capeRows, ctx, amount: flutter, speed: 2 * .pi / 2.6)   // green cape and the long hair over it
-        // bare legs dangle under the short dress, swaying a pixel as she floats
+        // bare legs, knees bent and feet tucked back, under the short dress; the feet sway a pixel as she floats
         let sway = (sin(t * 2 * .pi / 3.2 + 0.8) * 0.6 * grounded).rounded()
-        put(set.shinL, ctx, dx: sway); put(set.footL, ctx, dx: sway)
-        put(set.shinR, ctx, dx: -sway); put(set.footR, ctx, dx: -sway)
+        put(set.thighL, ctx); put(set.shinL, ctx, dy: sway); put(set.footL, ctx, dy: sway)
+        put(set.thighR, ctx); put(set.shinR, ctx, dy: -sway); put(set.footR, ctx, dy: -sway)
         rows(dressRows, ctx, amount: 1.4 + flutter * 0.4, speed: 2 * .pi / 1.8)
         put(set.armFarUpper, ctx, dy: breath * 0.5)
         put(wand, ctx, dy: breath * 0.4)
