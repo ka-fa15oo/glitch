@@ -45,6 +45,21 @@ enum Elf {
                             drop: ground - local.y, unit: scale * 2)
     }
 
+    /// How wide the wings are (1 = as drawn): a gentle beat, faster and deeper when `busy` (carried or falling, 0...1).
+    static func wingSpread(t: Double, busy: Double) -> Double {
+        1 - (0.05 + 0.08 * busy) * (0.5 + 0.5 * sin(t * 2 * .pi * (1.6 + 2.4 * busy)))
+    }
+
+    /// Every `greeneryPeriod` s (wall clock) grass and little flowers sprout under her for `greeneryLength` s.
+    static let greeneryPeriod = 70.0, greeneryLength = 7.0
+    static func greeneryAge(t: Double) -> Double? {
+        let a = (t + 30).truncatingRemainder(dividingBy: greeneryPeriod)
+        return a < greeneryLength ? a : nil
+    }
+
+    /// Where the wings meet her back (after the lean): they beat about this line.
+    private static let wingRoot = 37.0
+
     static func draw(_ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose) {
         var layer = outer
         layer.opacity = max(0, min(1, pose.reveal))
@@ -98,8 +113,21 @@ enum Elf {
             ctx.translateBy(x: -pose.hangPivot.x * unit, y: -pose.hangPivot.y * unit)
         }
 
+        let calm = (1 - pose.stepAmount) * (1 - pose.carriedAmount) * (1 - pose.fallAmount)
+        if let age = greeneryAge(t: t), calm > 0.01 {
+            var c = base
+            c.opacity = calm
+            drawGreenery(c, unit: unit, age: age, dx: bx)
+        }
+
         let flutter = 2.2 + 3 * pose.carriedAmount + 4 * pose.fallAmount
-        put(wings, ctx, dy: breath * 0.6)
+        let busy = max(pose.carriedAmount, pose.fallAmount)
+        var wingCtx = ctx
+        wingCtx.translateBy(x: (bx + wingRoot) * unit, y: 0)
+        wingCtx.scaleBy(x: wingSpread(t: t, busy: busy), y: 1)
+        wingCtx.translateBy(x: -(bx + wingRoot) * unit, y: 0)
+        put(wings, wingCtx, dy: breath * 0.6)
+        drawWingSparkles(ctx, unit: unit, t: t, dx: bx, dy: by + breath * 0.6)
         rows(set.capeRows, ctx, amount: flutter, speed: 2 * .pi / 2.6)   // green cape and the long hair over it
         // bare legs, knees bent and feet tucked back, under the short dress; the feet sway a pixel as she floats
         let sway = (sin(t * 2 * .pi / 3.2 + 0.8) * 0.6 * grounded).rounded()
@@ -125,6 +153,55 @@ enum Elf {
         put(set.armNearUpper, ctx, dy: breath * 0.5)
         put(set.armNearFore, ctx, dy: breath * 0.5)
         if pose.spell >= 0 { drawSpell(ctx, unit: unit, e: pose.spell, dx: bx, dy: by) }
+    }
+
+    /// Now and then a few motes of light drift down from one wing tip and fade.
+    private static func drawWingSparkles(_ c: GraphicsContext, unit: CGFloat, t: Double, dx: Double, dy: Double) {
+        let period = 3.5, life = 1.6
+        let age = t.truncatingRemainder(dividingBy: period)
+        guard age < life else { return }
+        let tips = [CGPoint(x: 61, y: 8), CGPoint(x: 8, y: 12), CGPoint(x: 64, y: 59), CGPoint(x: 16, y: 59)]
+        let tip = tips[Int(t / period) % tips.count]
+        var light = Path(), gold = Path()
+        for i in 0 ..< 3 {
+            let x = tip.x + Double(i - 1) * 2 + sin(age * 3 + Double(i)) * 1.2, y = tip.y + age * 9 + Double(i) * 3
+            let rect = CGRect(x: (x + dx).rounded() * unit, y: (y + dy).rounded() * unit, width: unit, height: unit)
+            if i == 1 { gold.addRect(rect) } else { light.addRect(rect) }
+        }
+        var c = c
+        c.opacity = 0.9 * (1 - ElfMeadow.ease(age / life))
+        c.fill(light, with: .color(Color(red: 0.69, green: 0.88, blue: 0.48)))
+        c.fill(gold, with: .color(Color(red: 1.0, green: 0.85, blue: 0.29)))
+    }
+
+    /// Grass blades and little flowers sprout on the ground round her, the middle first, then wither away.
+    private static func drawGreenery(_ c: GraphicsContext, unit: CGFloat, age: Double, dx: Double) {
+        let ground = 93.0
+        var rng = SplitMix(seed: 0x6EED)
+        func random() -> Double { Double(rng.next() % 10_000) / 10_000 }
+        var blades = Path(), tips = Path(), hearts = Path()
+        var blooms = Array(repeating: Path(), count: ElfMeadow.petals.count)
+        func cell(_ path: inout Path, _ x: Double, _ y: Double) {
+            path.addRect(CGRect(x: (x + dx).rounded() * unit, y: y.rounded() * unit, width: unit, height: unit))
+        }
+        let wither = ElfMeadow.ease((age - (greeneryLength - 1.5)) / 1.5)
+        for i in 0 ..< 46 {
+            let x = -10 + random() * 92, tall = 2 + random() * 5
+            let start = abs(x - 37) / 47 * 1.2 + random() * 0.3                 // spreads out from under her
+            let h = Int((tall * ElfMeadow.ease((age - start) / 0.6) * (1 - wither)).rounded())
+            guard h > 0 else { continue }
+            for k in 0 ..< h { cell(&blades, x + (k == h - 1 && i % 2 == 0 ? 1 : 0), ground - Double(k)) }
+            cell(&tips, x, ground - Double(h))
+            if i % 4 == 0, age - start > 1.0, h >= 3 {                           // a few blossom on the tallest blades
+                let top = ground - Double(h) - 1, tone = i % ElfMeadow.petals.count
+                cell(&hearts, x, top)
+                for (ox, oy) in [(-1.0, 0.0), (1, 0), (0, -1), (0, 1)] { cell(&blooms[tone], x + ox, top + oy) }
+            }
+        }
+        c.fill(blades, with: .color(ElfMeadow.stem))
+        c.fill(tips, with: .color(ElfMeadow.leaf))
+        for (path, color) in zip(blooms, ElfMeadow.petals) { c.fill(path, with: .color(color)) }
+        c.fill(hearts, with: .color(ElfMeadow.heart))
     }
 
     /// Sparkles stream from the wand tip and wind round her until she is wrapped in them, twinkling as they go.

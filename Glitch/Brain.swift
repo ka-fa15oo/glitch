@@ -906,11 +906,13 @@ final class Brain {
     private func stepFall(dt: Double, now: Double) {
         switch drop {
         case .falling(var vy):
-            vy += 2400 * dt
+            vy = Self.fallSpeed(vy, dt: dt, gentle: Elf.isSelected)
             let origin = windowOrigin()
             let y = origin.y - vy * dt
             if y <= groundY() {
                 setWindowOrigin(CGPoint(x: origin.x, y: groundY()))
+                // Faelis floats down on her wings: no thud, no stagger, just a happy little giggle
+                if Elf.isSelected { drop = .none; start(.happy, at: now); return }
                 drop = .impact(start: now, strength: min(1, max(0.35, vy / 1500)))
                 onSound?(.thud)
             } else {
@@ -931,6 +933,11 @@ final class Brain {
         }
     }
 
+    /// Fall speed after `dt` (pt/s, down): the knight and Wizzy drop like stones; `gentle` (Faelis) floats down on her wings.
+    static func fallSpeed(_ vy: Double, dt: Double, gentle: Bool) -> Double {
+        gentle ? min(260, vy + 700 * dt) : vy + 2400 * dt
+    }
+
     private func applyDrop(_ now: Double, to pose: inout Pose) {
         let near = Skeleton.shoulderNear, far = Skeleton.shoulderFar
         switch drop {
@@ -938,7 +945,7 @@ final class Brain {
             break
         case .falling:
             pose.falling = true
-            pose.eyes = .wide
+            pose.eyes = Elf.isSelected ? .happy : .wide
             pose.nearHand = CGPoint(x: near.x + 12, y: near.y - 15)
             pose.farHand = CGPoint(x: far.x - 11, y: far.y - 15)
             pose.kick = 0.5
