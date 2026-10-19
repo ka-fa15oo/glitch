@@ -7,6 +7,7 @@ enum SoundEffect {
     case constellation, dustOut, dustIn, shootingStar   // Wizzy's idle and walking spells, and its click
     case petals                            // Faelis's click: a shower of flowers from her wand
     case call, wilt                        // Faelis's sentinel: calling out for a question, petals wilting on an error
+    case ignite, whoosh, shriek, smother   // the phoenix: catching fire, a burst of flame, its cry, flames smothered
 }
 
 /// Tiny synthesizer: every effect is generated in code, so there are no audio assets.
@@ -41,7 +42,7 @@ final class SoundBank {
     }
 
     func play(_ effect: SoundEffect) {
-        let effect = Elf.isSelected ? Elf.voice(effect) : effect
+        let effect = Elf.isSelected ? Elf.voice(effect) : Phoenix.isSelected ? Phoenix.voice(effect) : effect
         // Sound tab: mute, volume and per-group switches are read on every play, so changes apply at once
         guard !Prefs.d.bool(forKey: Prefs.muted), SoundGroup.allows(effect) else { return }
         // Wizzy carries no sword: the knight's metal sounds never play for it, whoever asks for them
@@ -142,6 +143,23 @@ final class SoundBank {
         case .shootingStar:   // a quick bright streak that fades
             [Step(from: 1900, to: 3100, duration: 0.12, gain: 0.1),
              Step(from: 3100, to: 1500, duration: 0.6, gain: 0.07)]
+        case .ignite:   // embers crackling, then the flames catch with a rising rush
+            [Step(from: 0, to: 0, duration: 0.04, wave: .noise, gain: 0.3, crush: true),
+             Step(from: 0, to: 0, duration: 0.09, gain: 0),
+             Step(from: 0, to: 0, duration: 0.03, wave: .noise, gain: 0.25, crush: true),
+             Step(from: 0, to: 0, duration: 0.07, gain: 0),
+             Step(from: 0, to: 0, duration: 0.7, wave: .noise, gain: 0.22),
+             Step(from: 110, to: 190, duration: 0.3, gain: 0.12)]
+        case .whoosh:   // a burst of flame
+            [Step(from: 0, to: 0, duration: 0.45, wave: .noise, gain: 0.26),
+             Step(from: 95, to: 60, duration: 0.25, gain: 0.16)]
+        case .shriek:   // a short, piercing raptor cry
+            [Step(from: 2300, to: 3000, duration: 0.07, wave: .square, gain: 0.07),
+             Step(from: 3000, to: 1800, duration: 0.32, gain: 0.13),
+             Step(from: 1800, to: 1500, duration: 0.14, gain: 0.07)]
+        case .smother:  // the flames hiss out and sink
+            [Step(from: 0, to: 0, duration: 0.5, wave: .noise, gain: 0.2),
+             Step(from: 170, to: 70, duration: 0.3, wave: .square, gain: 0.08, crush: true)]
         case .fizzle:  // the spell misfires: a sputter and a sinking buzz
             [Step(from: 0, to: 0, duration: 0.09, wave: .noise, gain: 0.3, crush: true),
              Step(from: 240, to: 90, duration: 0.25, wave: .square, gain: 0.14, crush: true),

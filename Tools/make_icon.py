@@ -69,6 +69,29 @@ def flower_icon(px):
     return img.resize((px, px), Image.LANCZOS)
 
 
+def feather_icon(px):
+    """The phoenix: a tilted flame feather, its vane cut into flame tongues, with a clear gap along the shaft."""
+    img = Image.new("RGBA", (240, 240), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    base, tip = (62, 214), (182, 22)                  # the shaft runs from bottom left to top right
+    sx, sy = tip[0] - base[0], tip[1] - base[1]
+    length = math.hypot(sx, sy)
+    ux, uy = sx / length, sy / length
+    nx, ny = -uy, ux
+    left, right = [], []
+    for i in range(41):
+        t = i / 40
+        w = 46 * math.sin(math.pi * min(1, 0.12 + t * 0.95)) * (1 - 0.25 * t)
+        w *= 1 if t < 0.25 else 1 - 0.32 * (int(t * 9) % 2)   # flame tongues along the vane
+        cx, cy = base[0] + sx * t, base[1] + sy * t
+        left.append((cx + nx * w, cy + ny * w))
+        right.append((cx - nx * w * 0.8, cy - ny * w * 0.8))
+    d.polygon(left + right[::-1], fill=(0, 0, 0, 255))
+    d.line([base, (base[0] + sx * 0.92, base[1] + sy * 0.92)], fill=(0, 0, 0, 0), width=12)   # the shaft gap
+    d.line([(base[0] - ux * 22, base[1] - uy * 22), base], fill=(0, 0, 0, 255), width=14)    # the quill
+    return img.resize((px, px), Image.LANCZOS)
+
+
 def write(folder, images, contents):
     path = os.path.join(ASSETS, folder)
     os.makedirs(path, exist_ok=True)
@@ -92,7 +115,8 @@ write("AppIcon.appiconset", icons, {"images": entries, "info": {"author": "xcode
 
 for folder, draw in (("MenuBarIcon.imageset", lambda px: menu_icon(px, GLITCH_EYES)),
                      ("MenuBarIconWizzy.imageset", lambda px: menu_icon(px, WIZZY_EYES)),
-                     ("MenuBarIconFaelis.imageset", flower_icon)):
+                     ("MenuBarIconFaelis.imageset", flower_icon),
+                     ("MenuBarIconPhoenix.imageset", feather_icon)):
     write(folder, [("menubar.png", draw(18)), ("menubar@2x.png", draw(36))], {
         "images": [{"idiom": "universal", "scale": "1x", "filename": "menubar.png"},
                    {"idiom": "universal", "scale": "2x", "filename": "menubar@2x.png"}],
@@ -105,4 +129,4 @@ for e in entries:
     pt, scale = int(e["size"].split("x")[0]), int(e["scale"][0])
     with Image.open(os.path.join(ASSETS, "AppIcon.appiconset", e["filename"])) as im:
         assert im.size == (pt * scale, pt * scale), e
-print("ok:", len(entries), "app icon sizes + menu bar icons for Glitch, Wizzy and Faelis")
+print("ok:", len(entries), "app icon sizes + menu bar icons for Glitch, Wizzy, Faelis and the phoenix")

@@ -45,7 +45,7 @@ private struct MenuBarEyes: View {
     @AppStorage(Prefs.character) private var character = "glitch"
 
     var body: some View {
-        Image(character == Mage.id ? "MenuBarIconWizzy" : character == Elf.id ? "MenuBarIconFaelis" : "MenuBarIcon")
+        Image(character == Mage.id ? "MenuBarIconWizzy" : character == Elf.id ? "MenuBarIconFaelis" : character == Phoenix.id ? "MenuBarIconPhoenix" : "MenuBarIcon")
             .accessibilityLabel("Glitch")
     }
 }
@@ -569,6 +569,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "feast": pose.feast = e; pose.goldSparks = 2; if e > 0.3, e < 2.2 { pose.eyes = .happy }
                 case "misfire": pose.misfire = e; if e < 0.5 { pose.eyes = .wide }
                 case "call": pose.orb = e; pose.eyes = .happy; pose.bodyDY = -4
+                // the phoenix (run with `-character phoenix`): "rebirth:1.5", "ash:1.8", "quake:0.3", "carry:1", "pcast:0.2"
+                case "rebirth": pose.rebirth = e; pose.reveal = max(0, min(1, (e - Phoenix.rebirthAt) / 0.3)); pose.redSparks = 0; pose.goldSparks = 0
+                case "ash": pose.ash = e; pose.reveal = 1 - max(0, min(1, (e - Phoenix.burnAt) / 0.5))
+                case "quake": pose.quake = e
+                case "carry": pose.carried = true; pose.carriedAmount = e; pose.fling = 0.8; pose.hang = 0.1
+                case "pcast": pose.cast = e
                 case "bud": pose.rune = e
                 case "wilt": pose.misfire = e; pose.eyes = e < 0.3 ? .closed : .happy
                 case "bloom": pose.feast = e; pose.eyes = .happy

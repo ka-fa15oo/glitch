@@ -58,11 +58,11 @@ enum SoundGroup: String, CaseIterable {
     init(_ effect: SoundEffect) {
         switch effect {
         case .wake, .farewell, .sad: self = .arrival
-        case .angry, .happy, .surprised: self = .reactions
+        case .angry, .happy, .surprised, .shriek: self = .reactions
         case .tick, .thud: self = .movement
         case .glitch: self = .glitch
         case .swish, .clang, .scrape: self = .sword
-        case .chime, .nudge, .rune, .orb, .fizzle, .starGlide, .hole, .constellation, .dustOut, .dustIn, .shootingStar, .petals, .call, .wilt:
+        case .chime, .nudge, .rune, .orb, .fizzle, .starGlide, .hole, .constellation, .dustOut, .dustIn, .shootingStar, .petals, .call, .wilt, .ignite, .whoosh, .smother:
             self = .spells
         }
     }
