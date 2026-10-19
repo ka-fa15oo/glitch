@@ -11,7 +11,7 @@ A third character that is the opposite of Vorn's gothic mood: bright, green, cal
 - Green eyes.
 - Cream dress with green accents: hem, belt, cape (where the green goes: my call).
 - Slim, tall, pointed ears, noble and quiet, not chubby (my call, from Wizzy's "keep it fit" feedback).
-- Holds a thin branch that blooms (my call, replaces Wizzy's staff).
+- Fairy-like, with two pairs of sheer green-tinted wings behind her; no tall staff; a small wand with a blossom tip in her far hand (user, 2026-10-19).
 - Green is the dominant colour of the whole figure and its effects.
 
 ## Moves
