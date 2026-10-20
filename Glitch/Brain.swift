@@ -327,6 +327,7 @@ final class Brain {
     private struct Flight { var start: Double; var length: Double; var from, c1, c2, to: CGPoint }
     private var flight: Flight?
     private var launchPad: CGPoint?   // where the phoenix lifted off on its goodbye; nil = not yet
+    private var gusts = 0             // how many of its goodbye strokes have sounded
     /// Which constellation showing (see Mage) already had its sound.
     private var heardConstellation = -1.0
     private var feastStart: Double?, misfireStart: Double?
@@ -383,7 +384,7 @@ final class Brain {
 
     func start(_ kind: Action, at now: Double = CACurrentMediaTime(), silent: Bool = false) {
         action = (kind, now)
-        if kind == .farewell { flight = nil; launchPad = nil }
+        if kind == .farewell { flight = nil; launchPad = nil; gusts = 0 }
         if kind == .farewell, Mage.isSelected { beginBlackHole(at: now) }
         if kind == .farewell, Elf.isSelected {
             let o = windowOrigin()
@@ -765,16 +766,16 @@ final class Brain {
             pose.eyes = .happy
             pose.headDY = 0; pose.headRot = 0                          // head up, no knightly bow
         }
-        // the phoenix heats up on the spot with its wings folded tight, then launches straight up off the screen like a rocket
+        // the phoenix rears up, gives two huge strokes of its wings, and beats its way straight up off the screen
         if let a = action, a.kind == .farewell, Phoenix.isSelected {
             let e = now - a.start
             pose.ash = e
+            if gusts < Phoenix.strokes.count, e >= Phoenix.strokes[gusts] {   // the air thumps on every stroke
+                gusts += 1
+                onSound?(gusts == Phoenix.strokes.count ? .blast : .whoosh)
+            }
             if e >= Phoenix.launchAt {
-                if launchPad == nil {
-                    launchPad = windowOrigin()
-                    onSound?(.blast)
-                    Phoenix.launch(windowOrigin: windowOrigin(), facingRight: facingRight)
-                }
+                if launchPad == nil { launchPad = windowOrigin() }
                 if let pad = launchPad { setWindowOrigin(CGPoint(x: pad.x, y: pad.y + Phoenix.climb(e - Phoenix.launchAt))) }
             }
         }
