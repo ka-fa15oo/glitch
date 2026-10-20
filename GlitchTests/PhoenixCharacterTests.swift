@@ -42,17 +42,17 @@ struct PhoenixCharacterTests {
         Prefs.d.removeObject(forKey: Prefs.character)
     }
 
-    /// Goodbye: wings folded, a burst, then it shoots straight up off the screen.
-    @Test func goodbyeBurstsAndShootsUp() {
+    /// Goodbye: it heats up with its wings folded, then launches straight up off the screen.
+    @Test func goodbyeLaunchesLikeARocket() {
         let (phoenix, heard) = brain()
         var origin = CGPoint(x: 500, y: 0)
         phoenix.windowOrigin = { origin }
         phoenix.setWindowOrigin = { origin = $0 }
         #expect(phoenix.farewellLength == Phoenix.farewellLength)
         phoenix.start(.farewell, at: 200)
-        run(phoenix, from: 200, seconds: Phoenix.burstAt - 0.1)
-        #expect(origin.y == 0)                          // still gathering its fire
-        run(phoenix, from: 200 + Phoenix.burstAt - 0.1, seconds: 0.8)
+        run(phoenix, from: 200, seconds: Phoenix.launchAt - 0.1)
+        #expect(origin.y == 0)                          // still on the pad, heating up
+        run(phoenix, from: 200 + Phoenix.launchAt - 0.1, seconds: 0.8)
         #expect(heard().contains(.blast))
         #expect(origin.y > 1000 && origin.x == 500)     // gone straight up
         Prefs.d.removeObject(forKey: Prefs.character)

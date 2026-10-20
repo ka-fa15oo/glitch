@@ -163,11 +163,11 @@ final class SoundBank {
             [Step(from: 85, to: 120, duration: 0.18, wave: .square, gain: 0.14, crush: true),
              Step(from: 0, to: 0, duration: 0.9, wave: .noise, gain: 0.28),
              Step(from: 120, to: 60, duration: 0.3, wave: .square, gain: 0.1, crush: true)]
-        case .blast:    // a deep boom with a roaring tail of fire
-            [Step(from: 0, to: 0, duration: 0.05, wave: .noise, gain: 0.5),
-             Step(from: 90, to: 32, duration: 0.45, gain: 0.85),
-             Step(from: 0, to: 0, duration: 0.6, wave: .noise, gain: 0.22),
-             Step(from: 400, to: 1400, duration: 0.25, gain: 0.08)]
+        case .blast:    // lift-off: a deep thump, then the roar of the flame trailing away up into the sky
+            [Step(from: 0, to: 0, duration: 0.05, wave: .noise, gain: 0.5, crush: true),
+             Step(from: 80, to: 40, duration: 0.3, gain: 0.8),
+             Step(from: 0, to: 0, duration: 1.2, wave: .noise, gain: 0.3),
+             Step(from: 60, to: 140, duration: 0.3, wave: .square, gain: 0.06, crush: true)]
         case .smother:  // the flames hiss out and sink
             [Step(from: 0, to: 0, duration: 0.5, wave: .noise, gain: 0.2),
              Step(from: 170, to: 70, duration: 0.3, wave: .square, gain: 0.08, crush: true)]

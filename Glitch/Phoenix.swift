@@ -23,12 +23,14 @@ enum Phoenix {
     }()
     static let hitBounds = Sprite.bounds(of: hitMask)
 
-    /// Arrival (`pose.rebirth` = seconds in): it swoops down onto its spot, then rears up and breathes a torrent of fire
-    /// from `breathAt` for `breathLength` s; the brain lets go at `arrivalLength`.
-    static let swoopLength = 1.1, breathAt = 1.1, breathLength = 1.8, arrivalLength = 3.3
-    /// Goodbye (`pose.ash` = seconds in): it folds its wings and gathers its fire, bursts at `burstAt`, and shoots
-    /// straight up off the screen.
-    static let burstAt = 0.9, farewellLength = 2.0
+    /// Arrival (`pose.rebirth` = seconds in): it swoops down onto its spot over `swoopLength` s, pouring a torrent of
+    /// fire out ahead of it from `breathAt` for `breathLength` s; the brain lets go at `arrivalLength`.
+    static let swoopLength = 1.6, breathAt = 0.1, breathLength = 1.6, arrivalLength = 2.3
+    /// Goodbye (`pose.ash` = seconds in): like a rocket on the pad it glows hotter and hotter and folds its wings in
+    /// tight, then at `launchAt` it blasts straight up off the screen on a column of fire.
+    static let launchAt = 1.8, farewellLength = 2.8
+    /// Height climbed (screen points) `t` s after the launch; Brain moves the window by it, LaunchTrail follows it.
+    static func climb(_ t: Double) -> Double { 500 * t + 2600 * t * t }
     /// A click: it breathes a short gout of fire.
     static let clickBreath = 0.9
     /// Idle life: every `flareEvery` s (wall clock) it blazes up for `flareLength` s.
@@ -115,7 +117,9 @@ enum Phoenix {
 
     static func draw(_ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose) {
         let busy = max(pose.carriedAmount, pose.fallAmount)
-        let bx = pose.bodyDX + pose.shakeX, by = pose.bodyDY
+        // goodbye, on the pad: 0 ... 1 as it heats up and braces for the launch
+        let brace = pose.ash >= 0 ? clamp(pose.ash / launchAt) : 0
+        let bx = pose.bodyDX + pose.shakeX + sin(t * 90) * 0.9 * brace * brace, by = pose.bodyDY
         let body = Pixels(ctx: outer, unit: unit, dx: bx, dy: by)      // follows the bird
         let floor = Pixels(ctx: outer, unit: unit, dx: bx, dy: 0)      // stays on the ground
         let flying = pose.aloft > 0.5 && !pose.hovering
@@ -127,7 +131,7 @@ enum Phoenix {
         // behind the bird
         if pose.rune >= 0 { fireWall(floor, t: t, age: pose.rune, nudge: pose.nudge, front: false) }
         if pose.orb >= 0 { beacon(head, t: t, age: pose.orb) }
-        if pose.ash >= burstAt { climbTrail(body, t: t, age: pose.ash - burstAt) }
+        if pose.ash >= launchAt { climbTrail(body, t: t, age: pose.ash - launchAt) }
         // each downstroke pushes a faint breath of wind off the wings
         if sprite !== perch, sprite !== glide, sprite !== hover, pose.ash < 0 {
             wind(body, t: t, step: busy > 0.1 ? frameTime(busy: busy) : pose.rebirth >= 0 ? 0.06 : flying ? frameTime(busy: 0) : hoverFrameTime)
@@ -141,6 +145,12 @@ enum Phoenix {
             ctx.translateBy(x: baseline.x * unit, y: baseline.y * unit)
             ctx.scaleBy(x: 1 + 0.14 * pose.squash, y: 1 - 0.12 * pose.squash)
             ctx.translateBy(x: -baseline.x * unit, y: -baseline.y * unit)
+        }
+        if brace > 0 {   // folding in tighter and sinking a little onto its feet, like a spring
+            let feet = CGPoint(x: bx + 16, y: by + 86)
+            ctx.translateBy(x: feet.x * unit, y: feet.y * unit)
+            ctx.scaleBy(x: 1 - 0.3 * brace, y: 1 - 0.08 * brace)
+            ctx.translateBy(x: -feet.x * unit, y: -feet.y * unit)
         }
         if abs(pose.bank) > 0.002 {   // leaning into the turn on its glide
             ctx.translateBy(x: (bx + centre.x) * unit, y: (by + centre.y) * unit)
@@ -170,11 +180,23 @@ enum Phoenix {
         if pose.feast >= 0 { glow = max(glow, 0.5 * (1 - clamp(pose.feast / 1.2))) }
         if pose.misfire > 0.75 { glow = max(glow, 0.45 * sin(.pi * clamp((pose.misfire - 0.75) / 0.6))) }
         if pose.rebirth >= breathAt { glow = max(glow, 0.6 * sin(.pi * clamp((pose.rebirth - breathAt) / breathLength))) }
-        if pose.ash >= 0 { glow = max(glow, pose.ash < burstAt ? 0.9 * clamp(pose.ash / burstAt) : 0.7) }   // gathering its fire
+        if pose.ash >= 0 { glow = max(glow, 0.6 * brace) }   // white-hot by the launch
         if glow > 0.02 {
             var g = ctx
             g.blendMode = .plusLighter
             g.opacity = glow * clamp(pose.reveal)
+            g.draw(image, in: rect)
+        }
+        if brace > 0 {   // and red-hot: a red heat haze swelling round it, the bird itself glowing brighter
+            var halo = outer
+            halo.addFilter(.colorMultiply(Color(red: 1, green: 0.2, blue: 0.05)))
+            halo.addFilter(.blur(radius: (2 + 7 * brace) * unit))
+            halo.opacity = brace
+            halo.draw(image, in: rect)
+            var g = ctx
+            g.blendMode = .plusLighter
+            g.addFilter(.colorMultiply(Color(red: 1, green: 0.45, blue: 0.2)))
+            g.opacity = brace
             g.draw(image, in: rect)
         }
 
@@ -188,7 +210,7 @@ enum Phoenix {
             driftingFeather(body, t: t, age: pose.feast, slot: pose.goldSparks)
         }
         if pose.misfire >= 0 { smokePuffs(body, age: pose.misfire) }
-        if pose.ash >= 0, pose.ash < burstAt { gather(body, age: pose.ash) }
+        if pose.ash >= 0, pose.ash < launchAt { gather(body, age: pose.ash) }
         counters(floor, t: t, gold: pose.goldSparks, waiting: pose.redSparks)
     }
 
@@ -318,24 +340,27 @@ enum Phoenix {
         }
     }
 
-    /// Goodbye, wings folded: sparks rushing in from all round as it gathers its power.
+    /// Goodbye, on the pad: sparks rushing in from all round as it gathers its power, faster as it nears the launch.
     private static func gather(_ px: Pixels, age: Double) {
-        let k = clamp(age / burstAt)
-        for i in 0 ..< 36 {
-            let u = ((age * 1.6 + hash(i, 43)) ).truncatingRemainder(dividingBy: 1)
-            let a = Double(i) / 36 * 2 * .pi
+        let k = clamp(age / launchAt)
+        for i in 0 ..< 40 {
+            let u = ((age * (1.2 + 1.8 * k) + hash(i, 43))).truncatingRemainder(dividingBy: 1)
+            let a = Double(i) / 40 * 2 * .pi
             let r = 46 * (1 - u) + 4
             px.dot(centre.x + cos(a) * r, centre.y + sin(a) * r * 0.85, i % 3 == 0 ? gold : fire(1 - u), k * u, size: u > 0.7 ? 2 : 1)
         }
     }
 
-    /// Goodbye, after the burst: a column of fire streaming down off it as it shoots up.
+    /// Where the rocket flame leaves its folded body (sprite grid, perched frame).
+    private static let exhaust = CGPoint(x: 22, y: 90)
+
+    /// Goodbye, climbing: the flame roaring out under it, inside its own window (LaunchTrail draws the rest).
     private static func climbTrail(_ px: Pixels, t: Double, age: Double) {
-        for i in 0 ..< 40 {
-            let u = ((t * 3 + hash(i, 44)) ).truncatingRemainder(dividingBy: 1)
-            let x = centre.x + 4 + (hash(i, 45) - 0.5) * (8 + u * 14)
-            let y = centre.y + 30 + u * 40
-            px.dot(x, y, fire(u), (1 - u) * clamp(age / 0.1), size: u < 0.4 ? 3 : 2)
+        for i in 0 ..< 70 {
+            let u = ((t * 4 + hash(i, 44))).truncatingRemainder(dividingBy: 1)
+            let x = exhaust.x + (hash(i, 45) - 0.5) * (4 + u * 12)
+            let y = exhaust.y - 6 + u * 30
+            px.dot(x, y, fire(u * 0.8), (1 - u) * clamp(age / 0.05), size: u < 0.3 ? 4 : 3)
         }
     }
 
@@ -345,16 +370,22 @@ enum Phoenix {
     private static let beak = CGPoint(x: 12, y: 26)
 
     /// Breathes fire from its beak for `length` s; `dense` is the arrival's torrent, otherwise a click's gout.
-    @MainActor static func breathe(windowOrigin: CGPoint, facingRight: Bool, length: Double, dense: Bool) {
-        overlay(at: beak, windowOrigin: windowOrigin, facingRight: facingRight, for: length + FireBreath.life + 0.1) {
-            FireBreath(start: $0, dir: facingRight ? 1 : -1, unit: RobotView.scale, length: length, dense: dense)
+    /// On the arrival the window is still swooping from `windowOrigin` to `to`: the flame leaves the beak wherever it is
+    /// along that swoop, `offset` s into a `travel` s ease-out.
+    @MainActor static func breathe(windowOrigin: CGPoint, facingRight: Bool, length: Double, dense: Bool,
+                                   to: CGPoint? = nil, travel: Double = 0, offset: Double = 0) {
+        let end = to ?? windowOrigin
+        let shift = CGPoint(x: end.x - windowOrigin.x, y: windowOrigin.y - end.y)   // view coordinates: y down
+        overlay(at: beak, windowOrigin: end, facingRight: facingRight, for: length + FireBreath.life + 0.1) {
+            FireBreath(start: CGPoint(x: $0.x - shift.x, y: $0.y - shift.y), dir: facingRight ? 1 : -1, unit: RobotView.scale,
+                       length: length, dense: dense, shift: shift, travel: travel, offset: offset)
         }
     }
 
-    /// Goodbye: a blast of fire and light bursting out of it across the screen.
-    @MainActor static func blast(windowOrigin: CGPoint, facingRight: Bool) {
-        overlay(at: centre, windowOrigin: windowOrigin, facingRight: facingRight, for: Blast.life + 0.1) {
-            Blast(start: $0, unit: RobotView.scale)
+    /// Goodbye: the launch, a column of fire left burning up the screen behind it, and smoke billowing off the pad.
+    @MainActor static func launch(windowOrigin: CGPoint, facingRight: Bool) {
+        overlay(at: exhaust, windowOrigin: windowOrigin, facingRight: facingRight, for: LaunchTrail.life + 0.1) {
+            LaunchTrail(start: $0, unit: RobotView.scale)
         }
     }
 
@@ -387,6 +418,8 @@ enum Phoenix {
         let unit: CGFloat
         let length: Double
         let dense: Bool
+        var shift = CGPoint.zero   // how far the beak moves (view points) over the swoop
+        var travel = 0.0, offset = 0.0
         var fixedAge: Double?
         private let began = Date.timeIntervalSinceReferenceDate
 
@@ -398,31 +431,44 @@ enum Phoenix {
             }
         }
 
+        /// The beak, `t` s after the breath began, in art px from `start` (the same ease-out as Brain's swoop).
+        private func mouth(_ t: Double) -> CGPoint {
+            guard travel > 0 else { return .zero }
+            let k = 1 - pow(1 - min(1, (offset + t) / travel), 3), k0 = 1 - pow(1 - min(1, offset / travel), 3)
+            let f = k0 >= 1 ? 1 : (k - k0) / (1 - k0)
+            return CGPoint(x: shift.x * f / unit, y: shift.y * f / unit)
+        }
+
         private func canvas(age: Double) -> some View {
             Canvas { c, _ in
                 let px = Pixels(ctx: c, unit: unit, dx: start.x / unit, dy: start.y / unit)
                 let rate = dense ? 1400.0 : 600.0, speed = dense ? 330.0 : 210.0
                 let count = Int(length * rate)
                 for i in 0 ..< count {
-                    let a = age - Double(i) / rate
+                    let te = Double(i) / rate, a = age - te
                     guard a >= 0, a < Self.life else { continue }
                     let k = a / Self.life
+                    let from = mouth(te)
                     let dist = speed * a * (1 - 0.4 * a) * (0.7 + 0.6 * hash(i, 50))
                     let spread = (hash(i, 51) - 0.5) * (0.22 + 0.95 * k) * dist
-                    let x = dir * dist, y = 0.1 * dist + spread - 34 * a * a
+                    let x = from.x + dir * dist, y = from.y + 0.1 * dist + spread - 34 * a * a
                     let size = (dense ? 3 : 2) + (dense ? 8 : 5) * k
                     px.dot(x - size / 2, y - size / 2, fire(k * 0.95 + hash(i, 52) * 0.15), (1 - k * k) * 0.9, size: size.rounded())
                 }
                 // a white-hot core at the beak while it pours
-                if age < length { for j in 0 ..< 10 { px.dot(dir * Double(j) * 2.5 - 1, -1, j < 4 ? .white : pale, 1, size: dense ? 3 : 2) } }
+                if age < length {
+                    let m = mouth(age)
+                    for j in 0 ..< 10 { px.dot(m.x + dir * Double(j) * 2.5 - 1, m.y - 1, j < 4 ? .white : pale, 1, size: dense ? 3 : 2) }
+                }
             }
         }
     }
 
-    /// Fire and gold flying out in every direction behind a ring of light, from a white flash at its heart.
-    struct Blast: View {
-        static let life = 1.1
-        let start: CGPoint
+    /// The launch: the flame it leaves along its climb burns on and dies away from the bottom up, while smoke rolls
+    /// out over the pad. Everything is in screen points from `start`, the exhaust at the moment of lift-off.
+    struct LaunchTrail: View {
+        static let life = 1.8
+        let start: CGPoint   // view coordinates, y down
         let unit: CGFloat
         var fixedAge: Double?
         private let began = Date.timeIntervalSinceReferenceDate
@@ -439,29 +485,32 @@ enum Phoenix {
             Canvas { c, _ in
                 guard age < Self.life else { return }
                 let px = Pixels(ctx: c, unit: unit, dx: start.x / unit, dy: start.y / unit)
-                let k = age / Self.life
-                let out = 1 - pow(1 - k, 3)   // fast at first, slowing as it spreads
-                // the flash: a solid white-hot ball that swells and fades in the first moment
-                let flash = 1 - clamp(age / 0.3)
-                if flash > 0 {
-                    let r = 14 + 46 * age / 0.3
-                    var y = -r
-                    while y <= r {
-                        let half = (r * r - y * y).squareRoot()
-                        var x = -half
-                        while x <= half { px.dot(x, y, hypot(x, y) < r * 0.5 ? .white : hypot(x, y) < r * 0.8 ? pale : yellow, flash, size: 4); x += 4 }
-                        y += 4
-                    }
+                // the column: flame dropped at every height it passed, each burning out over `burn` s
+                let burn = 1.0, rate = 1100.0
+                for i in 0 ..< Int(0.9 * rate) {
+                    let te = Double(i) / rate
+                    let a = age - te
+                    guard a >= 0, a < burn else { continue }
+                    let k = a / burn
+                    let up = Phoenix.climb(te) / unit
+                    let x = (hash(i, 60) - 0.5) * (8 + 34 * k)
+                    let y = -up + 14 * k + hash(i, 61) * 8
+                    let size = 4 + 9 * k
+                    let core = abs(x) < 3 && k < 0.3
+                    px.dot(x - size / 2, y, core ? .white : k < 0.15 ? pale : fire(0.2 + k * 0.8), (1 - k * k) * 0.95, size: size.rounded())
                 }
-                // a storm of flames and gold flung out in every direction, densest at the heart, falling a little as they go
-                for i in 0 ..< 1100 {
-                    let a = Double(i) / 1100 * 2 * .pi + hash(i, 53) * 0.4
-                    let r = (16 + 280 * pow(hash(i, 54), 0.8)) * out
-                    let size = (9 - 6 * k) * (0.5 + 0.7 * hash(i, 56))
-                    px.dot(cos(a) * r - size / 2, sin(a) * r * 0.85 + 40 * k * k - size / 2,
-                           i % 6 == 0 ? gold : fire(k * 0.75 + hash(i, 55) * 0.3), (1 - k * k) * 0.95, size: max(1, size.rounded()))
+                // the pad: a flash at lift-off, then thick smoke rolling out to both sides and rising
+                let flash = 1 - clamp(age / 0.25)
+                if flash > 0 { for j in 0 ..< 64 { px.dot(Double(j % 8) * 3 - 12, Double(j / 8) * 3 - 14, j % 3 == 0 ? pale : .white, flash, size: 4) } }
+                for i in 0 ..< 140 {
+                    let side = i % 2 == 0 ? 1.0 : -1.0
+                    let k = clamp(age / Self.life)
+                    let x = side * (4 + (24 + 80 * hash(i, 62)) * sqrt(k))
+                    let y = 6 - (6 + 36 * hash(i, 63)) * k
+                    px.dot(x, y, i % 3 == 0 ? ashGrey : smoke, (1 - k) * 0.75 * clamp(age / 0.1), size: 4 + 10 * k)
                 }
             }
         }
     }
+
 }

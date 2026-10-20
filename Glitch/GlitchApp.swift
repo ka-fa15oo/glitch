@@ -606,8 +606,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                          fixedAge: Double(mood.dropFirst(7)) ?? 1)
                 .frame(width: 600, height: 300).background(Color(red: 0.11, green: 0.11, blue: 0.13)))
             : mood.hasPrefix("blast:")
-            ? AnyView(Phoenix.Blast(start: CGPoint(x: 350, y: 300), unit: 2, fixedAge: Double(mood.dropFirst(6)) ?? 0.3)
-                .frame(width: 700, height: 600).background(Color(red: 0.11, green: 0.11, blue: 0.13)))
+            ? AnyView(Phoenix.LaunchTrail(start: CGPoint(x: 300, y: 1100), unit: 2, fixedAge: Double(mood.dropFirst(6)) ?? 0.3)
+                .frame(width: 600, height: 1200).background(Color(red: 0.11, green: 0.11, blue: 0.13)))
             : mood.hasPrefix("streak")
             ? AnyView(Mage.ShootingStar(start: CGPoint(x: 560, y: 260), facingRight: false, unit: 2,
                                         fixedAge: Double(mood.dropFirst(6)) ?? 0.5)

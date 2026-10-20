@@ -326,7 +326,7 @@ final class Brain {
     /// The phoenix flies instead of walking: a long curve over the screen from one perch to the next.
     private struct Flight { var start: Double; var length: Double; var from, c1, c2, to: CGPoint }
     private var flight: Flight?
-    private var blasted = false   // the phoenix's goodbye burst has gone off
+    private var launchPad: CGPoint?   // where the phoenix lifted off on its goodbye; nil = not yet
     /// Which constellation showing (see Mage) already had its sound.
     private var heardConstellation = -1.0
     private var feastStart: Double?, misfireStart: Double?
@@ -383,7 +383,7 @@ final class Brain {
 
     func start(_ kind: Action, at now: Double = CACurrentMediaTime(), silent: Bool = false) {
         action = (kind, now)
-        if kind == .farewell { flight = nil; blasted = false }
+        if kind == .farewell { flight = nil; launchPad = nil }
         if kind == .farewell, Mage.isSelected { beginBlackHole(at: now) }
         if kind == .farewell, Elf.isSelected {
             let o = windowOrigin()
@@ -491,11 +491,12 @@ final class Brain {
                 setWindowOrigin(CGPoint(x: from.x + (l.x - from.x) * k, y: from.y + (groundY() - from.y) * k))
             }
             let shaped = phoenix ? Phoenix.breathAt : elf ? ElfMeadow.riseAt + 0.3 : MageCosmos.materializeAt + 0.9
-            if e >= shaped, !l.chimed {   // it has taken shape (the phoenix: it rears up and breathes its torrent of fire)
+            if e >= shaped, !l.chimed {   // it has taken shape (the phoenix: it pours out its torrent of fire as it swoops in)
                 l.chimed = true
                 onSound?(phoenix ? .roar : .chime)
                 if phoenix {
-                    Phoenix.breathe(windowOrigin: windowOrigin(), facingRight: facingRight, length: Phoenix.breathLength, dense: true)
+                    Phoenix.breathe(windowOrigin: windowOrigin(), facingRight: facingRight, length: Phoenix.breathLength, dense: true,
+                                    to: CGPoint(x: l.x, y: groundY()), travel: Phoenix.swoopLength, offset: e)
                 }
             }
             if e > (phoenix ? Phoenix.arrivalLength : elf ? ElfMeadow.arrivalLength - 1.4 : MageCosmos.rainLength - 0.3) {
@@ -764,18 +765,17 @@ final class Brain {
             pose.eyes = .happy
             pose.headDY = 0; pose.headRot = 0                          // head up, no knightly bow
         }
-        // the phoenix folds its wings and gathers its fire, bursts, and shoots straight up off the screen
+        // the phoenix heats up on the spot with its wings folded tight, then launches straight up off the screen like a rocket
         if let a = action, a.kind == .farewell, Phoenix.isSelected {
             let e = now - a.start
             pose.ash = e
-            if e >= Phoenix.burstAt {
-                if !blasted {
-                    blasted = true
+            if e >= Phoenix.launchAt {
+                if launchPad == nil {
+                    launchPad = windowOrigin()
                     onSound?(.blast)
-                    Phoenix.blast(windowOrigin: windowOrigin(), facingRight: facingRight)
+                    Phoenix.launch(windowOrigin: windowOrigin(), facingRight: facingRight)
                 }
-                let o = windowOrigin()
-                setWindowOrigin(CGPoint(x: o.x, y: o.y + (600 + 4000 * (e - Phoenix.burstAt)) * dt))
+                if let pad = launchPad { setWindowOrigin(CGPoint(x: pad.x, y: pad.y + Phoenix.climb(e - Phoenix.launchAt))) }
             }
         }
         if let q = quakeStart {
