@@ -1,27 +1,25 @@
 import SwiftUI
 
 /// The crimson phoenix (Character 5). It shares the brain with Wizzy and Faelis (a caster: no sword, its own arrival,
-/// goodbye and sentinel moves) but flies where the others walk: it perches with its wings folded, takes off, beats and
-/// glides over the screen. It draws itself from ten frames bent out of one AI concept (Tools/make_phoenix.py) and
-/// every fire effect as art-pixel particles inside its own window.
+/// goodbye and sentinel moves) but flies where the others walk: it hangs in the air beating its wings, sweeps over the
+/// screen gliding on them, and now and then perches at the bottom. It draws itself from nine 3/4-view frames cut out of
+/// a Canva AI pose sheet (Tools/make_phoenix.py) and every fire effect as art-pixel particles inside its own window.
 enum Phoenix {
     static let id = "phoenix"
     static var isSelected: Bool { Prefs.d.string(forKey: Prefs.character) == id }
 
     /// Each frame covers the whole window canvas, so it is drawn from the padding's corner, not the sprite grid's.
-    private static let flaps = (1 ... 8).map { Sprite.loadShared("phoenix_flap\($0)") }
-    private static let glide = Sprite.loadShared("phoenix_glide"), perch = Sprite.loadShared("phoenix_perch")
-    /// Shaking out its wings on the perch: half open, out wide, and folded again.
-    private static let ruffleFrames = [5, 6, 7, 8, 7, 6, 5].map { flaps[$0 - 1] }
-    static let ruffleLength = 0.9
+    private static let flaps = (1 ... 6).map { Sprite.loadShared("phoenix_flap\($0)") }
+    private static let glide = Sprite.loadShared("phoenix_glide"), hover = Sprite.loadShared("phoenix_hover")
+    private static let perch = Sprite.loadShared("phoenix_perch")
     /// RobotView's padding and canvas, copied because RobotView is main-actor and these are read off it.
     private static let padLeft = 22, padTop = 14, canvas = CGSize(width: 112, height: 124)
 
-    /// Click area: the perched and the open-winged bird inside the sprite grid.
+    /// Click area: the flying, the wings-spread and the perched bird inside the sprite grid.
     /// shortcut: wing tips out in the window padding don't take clicks; widen `Sprite.hit` if that ever matters.
     static let hitMask: [Bool] = {
         let grid = CGRect(x: padLeft, y: padTop, width: Sprite.width, height: Sprite.height)
-        return Sprite.coverage([flaps[1], perch].compactMap { $0.cropping(to: grid).map { ($0, CGPoint.zero) } })
+        return Sprite.coverage([flaps[0], hover, perch].compactMap { $0.cropping(to: grid).map { ($0, CGPoint.zero) } })
     }()
     static let hitBounds = Sprite.bounds(of: hitMask)
 
@@ -32,25 +30,25 @@ enum Phoenix {
     /// Idle life: every `flareEvery` s (wall clock) it spreads its wings and blazes up for `flareLength` s.
     static let flareEvery = 28.0, flareLength = 1.6
 
-    /// Seconds per frame of the eight-frame beat: strong in flight, frantic when carried or falling.
-    static func frameTime(busy: Double) -> Double { 0.075 - 0.03 * busy }
+    /// Seconds per frame of the six-frame beat: strong in flight, frantic when carried.
+    static func frameTime(busy: Double) -> Double { 0.085 - 0.035 * busy }
+    /// The slow beat that holds it in the air while it hangs in one place.
+    static let hoverFrameTime = 0.13
 
-    /// Which frame it shows: the wing beat, the glide, the fold, or a held spread.
+    /// Which frame it shows: a wing beat, the glide, the wings spread at you, or folded on the perch.
     private static func frame(t: Double, busy: Double, flare: Double?, pose: Brain.Pose) -> CGImage {
-        let beating = flaps[Int(t / frameTime(busy: busy)) % flaps.count]
-        if busy > 0.1 { return beating }
-        if pose.rebirth >= 0 { return pose.rebirth < rebirthAt + 1.0 ? flaps[0] : pose.rebirth < rebirthAt + 1.2 ? flaps[4] : perch }
-        if pose.aloft > 0.85 { return pose.beat > 0.5 ? beating : glide }
-        if pose.aloft > 0.15 { return flaps[4] }               // wings sweeping open or folding away
-        if pose.misfire >= 0 { return perch }                   // flames out, wings stay folded
-        if pose.cast >= 0, pose.cast < 0.8 { return flaps[0] }  // click: wings flung up
-        if pose.cast >= 0.8, pose.cast < 0.95 { return flaps[4] }
-        if let f = flare, f < 1.3 { return f < 0.1 || f > 1.2 ? flaps[4] : flaps[0] }
-        if pose.threat > 0.5 { return flaps[0] }                // reared up at the cursor
-        if pose.threat > 0.15 { return flaps[4] }
-        if pose.ruffle >= 0, pose.ruffle < ruffleLength {
-            return ruffleFrames[min(ruffleFrames.count - 1, Int(pose.ruffle / ruffleLength * Double(ruffleFrames.count)))]
-        }
+        func beat(_ step: Double) -> CGImage { flaps[Int(t / step) % flaps.count] }
+        if busy > 0.1 { return beat(frameTime(busy: busy)) }
+        if pose.rebirth >= 0 { return pose.rebirth < rebirthAt + 1.0 ? hover : perch }   // bursts out, then settles
+        let flying = pose.aloft > 0.5 && !pose.hovering
+        if flying { return pose.beat > 0.5 ? beat(frameTime(busy: 0)) : glide }
+        // proud and wild: wings flung wide at a click, a blaze-up, or the cursor coming close
+        if pose.cast >= 0, pose.cast < 0.9 { return hover }
+        if let f = flare, f < 1.3 { return hover }
+        if pose.threat > 0.5 { return hover }
+        if pose.misfire >= 0 { return pose.aloft > 0.5 ? glide : perch }   // flames out: wings held still
+        if pose.aloft > 0.5 { return beat(hoverFrameTime) }
+        if pose.aloft > 0.15 { return flaps[3] }               // wings sweeping in to land or out to take off
         return perch
     }
 
@@ -59,21 +57,26 @@ enum Phoenix {
         return a < flareLength ? a : nil
     }
 
-    /// No knightly voice: cross, startled and sad come out as its cry, happy as a burst of flame.
+    /// None of the knight's voice: cross and startled come out as its cry, sad as its flames sinking, every knightly
+    /// chirp, tick or thud as fire.
     static func voice(_ effect: SoundEffect) -> SoundEffect {
         switch effect {
-        case .angry, .surprised, .sad: .shriek
-        case .happy: .whoosh
+        case .angry, .surprised: .shriek
+        case .sad: .smother
+        case .happy, .thud, .tick, .glitch: .whoosh
+        case .wake, .farewell: .ignite
         default: effect
         }
     }
 
-    // MARK: - anatomy (sprite-grid art px, rest frame) and palette
+    // MARK: - anatomy (sprite-grid art px, airborne frames) and palette
 
-    private static let centre = CGPoint(x: 35.5, y: 50)
-    private static let crest = CGPoint(x: 35, y: 7)
-    private static let eyes = [CGPoint(x: 33, y: 24), CGPoint(x: 38, y: 24)]
-    private static let ground = 93.0
+    private static let centre = CGPoint(x: 28, y: 46)
+    private static let crest = CGPoint(x: 19, y: 14)
+    private static let eyes = [CGPoint(x: 16, y: 23)]   // 3/4 view: one eye shows
+    /// The perched frame's head sits this much lower than the airborne frames'.
+    private static let perchDrop = 20.0
+    private static let ground = 90.0
 
     private static let pale = Color(red: 1, green: 0.96, blue: 0.72), yellow = Color(red: 1, green: 0.8, blue: 0.2)
     private static let orange = Color(red: 1, green: 0.47, blue: 0.08), red = Color(red: 0.82, green: 0.12, blue: 0.08)
@@ -111,11 +114,11 @@ enum Phoenix {
         let bx = pose.bodyDX + pose.shakeX, by = pose.bodyDY
         let body = Pixels(ctx: outer, unit: unit, dx: bx, dy: by)      // follows the bird
         let floor = Pixels(ctx: outer, unit: unit, dx: bx, dy: 0)      // stays on the ground
-        let calm = busy < 0.1 && pose.misfire < 0 && pose.rebirth < 0 && pose.ash < 0 && pose.aloft < 0.5
+        let flying = pose.aloft > 0.5 && !pose.hovering
+        let calm = busy < 0.1 && pose.misfire < 0 && pose.rebirth < 0 && pose.ash < 0 && !flying
         let flare = calm ? flareAge(t: t) : nil
-
-        let flying = pose.aloft > 0.5
-        let sprite = frame(t: t, busy: busy, flare: flying ? nil : flare, pose: pose)
+        let sprite = frame(t: t, busy: busy, flare: flare, pose: pose)
+        let head = Pixels(ctx: outer, unit: unit, dx: bx, dy: by + (sprite === perch ? perchDrop : 0))   // crest and eyes
 
         // behind the bird
         if pose.rebirth >= 0 { ashPile(floor, t: t, amount: clamp(pose.rebirth / 0.3) * (1 - clamp((pose.rebirth - 1.8) / 0.4)), glints: pose.rebirth < rebirthAt) }
@@ -125,7 +128,7 @@ enum Phoenix {
                     amount: clamp(a / 0.4) * (1 - clamp((a - 1.0) / 0.5)), glints: true)
         }
         if pose.rune >= 0 { fireWall(floor, t: t, age: pose.rune, nudge: pose.nudge, front: false) }
-        if pose.orb >= 0 { beacon(body, t: t, age: pose.orb) }
+        if pose.orb >= 0 { beacon(head, t: t, age: pose.orb) }
         if pose.quake >= 0 { shockwave(floor, age: pose.quake) }
 
         // the bird
@@ -183,7 +186,7 @@ enum Phoenix {
         if pose.reveal > 0.5, pose.ash < 0 { embers(body, t: t, busy: max(busy, flying ? 0.6 : 0), fling: pose.fling, misfire: pose.misfire) }
         if let f = flare { burst(body, age: f, length: flareLength, count: 18, colour: nil) }
         if pose.cast >= 0 { flameRing(body, age: pose.cast) }
-        if pose.orb >= 0 { glowingEyes(body, t: t) }
+        if pose.orb >= 0 { glowingEyes(head, t: t) }
         if pose.feast >= 0 {
             burst(body, age: pose.feast, length: 1.2, count: 24, colour: gold)
             driftingFeather(body, t: t, age: pose.feast, slot: pose.goldSparks)

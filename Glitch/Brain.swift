@@ -253,8 +253,8 @@ final class Brain {
         var aloft = 0.0         // phoenix: 0 = perched with its wings folded ... 1 = in the air
         var beat = 0.0          // phoenix in the air: 1 = beating its wings, 0 = gliding on them
         var bank = 0.0          // phoenix: radians, leaning into the turn while it glides
-        var ruffle = -1.0       // phoenix perched: seconds since it began shaking out its wings; < 0 = none
-        var threat = 0.0        // phoenix perched: 0...1 wings raised at the cursor coming close
+        var hovering = false    // phoenix: hanging in the air in one place, beating its wings slowly
+        var threat = 0.0        // phoenix: 0...1 wings flung wide at the cursor coming close
         var hang = 0.0          // swing angle while carried (radians)
         var hangPivot = CGPoint(x: 39, y: 20)   // sprite point under the cursor
     }
@@ -863,7 +863,11 @@ final class Brain {
         let origin = windowOrigin()
         for _ in 0 ..< 8 {
             let x = CGFloat.random(in: bounds.minX ... bounds.maxX)
-            let y = gravityEnabled
+            // the phoenix mostly flies to a spot in the air to hang there, sometimes down to a perch at the bottom
+            let air = Phoenix.isSelected && (!gravityEnabled || Double.random(in: 0 ... 1) < 0.7)
+            let y = air
+                ? CGFloat.random(in: min(bounds.maxY, groundY() + 120) ... bounds.maxY)
+                : gravityEnabled
                 ? groundY()
                 : min(bounds.maxY, max(bounds.minY, origin.y + .random(in: -80 ... 80)))
             if abs(x - origin.x) > 180, !blocked(CGPoint(x: x, y: y)) {
@@ -919,13 +923,16 @@ final class Brain {
         pose.fling = max(-1, min(1, vx / 300)) * (facingRight ? -1 : 1)
     }
 
-    /// The phoenix's wings: folded on the perch, open in the air, raised at the cursor, shaken out now and then.
+    /// The phoenix's wings: beating as it flies, slow beats as it hangs in the air, folded on a perch, flung wide at the cursor.
     private func applyPhoenix(_ now: Double, carried: Bool, dropping: Bool, to pose: inout Pose) {
         if flight != nil || carried || dropping { pose.aloft = 1; if carried || dropping { pose.beat = 1 }; return }
         guard landing == nil, action?.kind != .farewell else { return }
-        // proud and wild: it rears up with its wings high when the cursor comes close
+        let perched = windowOrigin().y <= groundY() + 2
+        pose.aloft = perched ? 0 : 1
+        pose.hovering = !perched
+        if !perched { pose.bodyDY += 2 * sin(now * 2.2) }   // rising and sinking a little with each slow beat
+        // proud and wild: it spreads its wings at you when the cursor comes close
         if mouseNear, sentinelHold == .none { pose.threat = 1 }
-        if let a = action, a.kind == .look, now >= a.start { pose.ruffle = now - a.start }
     }
 
     private func walkAway(at now: Double) {
@@ -1010,25 +1017,25 @@ final class Brain {
     // MARK: - falling after a drop
 
     private func released(at now: Double) {
+        if Phoenix.isSelected { drop = .none; return }   // it never falls: it catches itself and hangs where it was let go
         guard gravityEnabled else { drop = .dust(start: now, sulks: false); return }
         if windowOrigin().y > groundY() + 4 {
             drop = .falling(vy: 0)
         } else {
-            drop = Phoenix.isSelected ? .none : .stagger(start: now)
+            drop = .stagger(start: now)
         }
     }
 
     private func stepFall(dt: Double, now: Double) {
         switch drop {
         case .falling(var vy):
-            vy = Self.fallSpeed(vy, dt: dt, gentle: Elf.isSelected || Phoenix.isSelected)
+            vy = Self.fallSpeed(vy, dt: dt, gentle: Elf.isSelected)
             let origin = windowOrigin()
             let y = origin.y - vy * dt
             if y <= groundY() {
                 setWindowOrigin(CGPoint(x: origin.x, y: groundY()))
                 // Faelis floats down on her wings: no thud, no stagger, just a happy little giggle
                 if Elf.isSelected { drop = .none; start(.happy, at: now); return }
-                if Phoenix.isSelected { quakeStart = now; drop = .none; onSound?(.whoosh); return }   // it lands in a ring of fire
                 drop = .impact(start: now, strength: min(1, max(0.35, vy / 1500)))
                 onSound?(.thud)
             } else {

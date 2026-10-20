@@ -73,8 +73,25 @@ struct PhoenixCharacterTests {
         Prefs.d.removeObject(forKey: Prefs.character)
     }
 
-    @Test func itsCryReplacesTheKnightsVoice() {
-        #expect(Phoenix.voice(.angry) == .shriek && Phoenix.voice(.sad) == .shriek && Phoenix.voice(.happy) == .whoosh)
-        #expect(Phoenix.voice(.thud) == .thud)
+    /// Let go in the air, it does not fall: it hangs there beating its wings.
+    @Test func letGoItHangsInTheAir() {
+        let (phoenix, _) = brain()
+        var origin = CGPoint(x: 500, y: 400)
+        phoenix.windowOrigin = { origin }
+        phoenix.setWindowOrigin = { origin = $0 }
+        phoenix.walkBounds = { CGRect(x: 0, y: 0, width: 1000, height: 700) }
+        phoenix.groundY = { 0 }
+        phoenix.carried(mouseX: 500, at: 400)
+        run(phoenix, from: 400, seconds: 0.1)
+        run(phoenix, from: 400.5, seconds: 2)
+        #expect(origin.y == 400)
+        #expect(phoenix.current.hovering && phoenix.current.aloft > 0.9)
+        Prefs.d.removeObject(forKey: Prefs.character)
+    }
+
+    @Test func noneOfTheKnightsVoice() {
+        #expect(Phoenix.voice(.angry) == .shriek && Phoenix.voice(.surprised) == .shriek && Phoenix.voice(.sad) == .smother)
+        #expect([SoundEffect.happy, .thud, .tick, .glitch].allSatisfy { Phoenix.voice($0) == .whoosh })
+        #expect(Phoenix.voice(.wake) == .ignite && Phoenix.voice(.shriek) == .shriek)
     }
 }
