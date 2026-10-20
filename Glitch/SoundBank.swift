@@ -8,6 +8,7 @@ enum SoundEffect {
     case petals                            // Faelis's click: a shower of flowers from her wand
     case call, wilt                        // Faelis's sentinel: calling out for a question, petals wilting on an error
     case ignite, whoosh, shriek, smother   // the phoenix: catching fire, a burst of flame, its cry, flames smothered
+    case roar, blast                       // the phoenix breathing fire, and its goodbye burst
 }
 
 /// Tiny synthesizer: every effect is generated in code, so there are no audio assets.
@@ -153,10 +154,20 @@ final class SoundBank {
         case .whoosh:   // a burst of flame
             [Step(from: 0, to: 0, duration: 0.45, wave: .noise, gain: 0.26),
              Step(from: 95, to: 60, duration: 0.25, gain: 0.16)]
-        case .shriek:   // a short, piercing raptor cry
-            [Step(from: 2300, to: 3000, duration: 0.07, wave: .square, gain: 0.07),
-             Step(from: 3000, to: 1800, duration: 0.32, gain: 0.13),
-             Step(from: 1800, to: 1500, duration: 0.14, gain: 0.07)]
+        case .shriek:   // a raptor's scream: hoarse and full-throated, not a chirp
+            [Step(from: 0, to: 0, duration: 0.04, wave: .noise, gain: 0.16, crush: true),
+             Step(from: 620, to: 980, duration: 0.12, wave: .square, gain: 0.12, crush: true),
+             Step(from: 980, to: 520, duration: 0.42, wave: .square, gain: 0.11, crush: true),
+             Step(from: 0, to: 0, duration: 0.16, wave: .noise, gain: 0.08)]
+        case .roar:     // a rush of fire out of its throat, under a low growl
+            [Step(from: 85, to: 120, duration: 0.18, wave: .square, gain: 0.14, crush: true),
+             Step(from: 0, to: 0, duration: 0.9, wave: .noise, gain: 0.28),
+             Step(from: 120, to: 60, duration: 0.3, wave: .square, gain: 0.1, crush: true)]
+        case .blast:    // a deep boom with a roaring tail of fire
+            [Step(from: 0, to: 0, duration: 0.05, wave: .noise, gain: 0.5),
+             Step(from: 90, to: 32, duration: 0.45, gain: 0.85),
+             Step(from: 0, to: 0, duration: 0.6, wave: .noise, gain: 0.22),
+             Step(from: 400, to: 1400, duration: 0.25, gain: 0.08)]
         case .smother:  // the flames hiss out and sink
             [Step(from: 0, to: 0, duration: 0.5, wave: .noise, gain: 0.2),
              Step(from: 170, to: 70, duration: 0.3, wave: .square, gain: 0.08, crush: true)]

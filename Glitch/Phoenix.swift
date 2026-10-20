@@ -23,29 +23,33 @@ enum Phoenix {
     }()
     static let hitBounds = Sprite.bounds(of: hitMask)
 
-    /// Arrival: embers swirl out of the ash and it bursts out of the flames at `rebirthAt`; the brain lets go at `arrivalLength`.
-    static let rebirthAt = 1.4, arrivalLength = 2.8
-    /// Goodbye: it burns, then crumbles to ash from `burnAt`.
-    static let farewellLength = 2.8, burnAt = 1.3
-    /// Idle life: every `flareEvery` s (wall clock) it spreads its wings and blazes up for `flareLength` s.
+    /// Arrival (`pose.rebirth` = seconds in): it swoops down onto its spot, then rears up and breathes a torrent of fire
+    /// from `breathAt` for `breathLength` s; the brain lets go at `arrivalLength`.
+    static let swoopLength = 1.1, breathAt = 1.1, breathLength = 1.8, arrivalLength = 3.3
+    /// Goodbye (`pose.ash` = seconds in): it folds its wings and gathers its fire, bursts at `burstAt`, and shoots
+    /// straight up off the screen.
+    static let burstAt = 0.9, farewellLength = 2.0
+    /// A click: it breathes a short gout of fire.
+    static let clickBreath = 0.9
+    /// Idle life: every `flareEvery` s (wall clock) it blazes up for `flareLength` s.
     static let flareEvery = 28.0, flareLength = 1.6
 
-    /// Seconds per frame of the six-frame beat: strong in flight, frantic when carried.
-    static func frameTime(busy: Double) -> Double { 0.085 - 0.035 * busy }
-    /// The slow beat that holds it in the air while it hangs in one place.
-    static let hoverFrameTime = 0.13
+    /// Seconds per frame of the six-frame beat: slow, heavy strokes in flight, frantic when carried.
+    static func frameTime(busy: Double) -> Double { 0.11 - 0.06 * busy }
+    /// The slower beat that holds it in the air while it hangs in one place.
+    static let hoverFrameTime = 0.16
 
-    /// Which frame it shows: a wing beat, the glide, the wings spread at you, or folded on the perch.
-    private static func frame(t: Double, busy: Double, flare: Double?, pose: Brain.Pose) -> CGImage {
+    /// Which frame it shows: a wing beat, the glide, the wings spread, or folded on the perch.
+    private static func frame(t: Double, busy: Double, pose: Brain.Pose) -> CGImage {
         func beat(_ step: Double) -> CGImage { flaps[Int(t / step) % flaps.count] }
         if busy > 0.1 { return beat(frameTime(busy: busy)) }
-        if pose.rebirth >= 0 { return pose.rebirth < rebirthAt + 1.0 ? hover : perch }   // bursts out, then settles
+        if pose.ash >= 0 { return perch }                       // wings folded tight for the burst and the climb
+        if pose.rebirth >= 0 {                                  // swoops in beating hard, rears up to breathe fire, settles
+            return pose.rebirth < swoopLength ? beat(0.06) : pose.rebirth < breathAt + breathLength ? hover : perch
+        }
         let flying = pose.aloft > 0.5 && !pose.hovering
         if flying { return pose.beat > 0.5 ? beat(frameTime(busy: 0)) : glide }
-        // proud and wild: wings flung wide at a click, a blaze-up, or the cursor coming close
-        if pose.cast >= 0, pose.cast < 0.9 { return hover }
-        if let f = flare, f < 1.3 { return hover }
-        if pose.threat > 0.5 { return hover }
+        if pose.cast >= 0, pose.cast < clickBreath { return hover }   // rears up to breathe fire
         if pose.misfire >= 0 { return pose.aloft > 0.5 ? glide : perch }   // flames out: wings held still
         if pose.aloft > 0.5 { return beat(hoverFrameTime) }
         if pose.aloft > 0.15 { return flaps[3] }               // wings sweeping in to land or out to take off
@@ -117,19 +121,17 @@ enum Phoenix {
         let flying = pose.aloft > 0.5 && !pose.hovering
         let calm = busy < 0.1 && pose.misfire < 0 && pose.rebirth < 0 && pose.ash < 0 && !flying
         let flare = calm ? flareAge(t: t) : nil
-        let sprite = frame(t: t, busy: busy, flare: flare, pose: pose)
+        let sprite = frame(t: t, busy: busy, pose: pose)
         let head = Pixels(ctx: outer, unit: unit, dx: bx, dy: by + (sprite === perch ? perchDrop : 0))   // crest and eyes
 
         // behind the bird
-        if pose.rebirth >= 0 { ashPile(floor, t: t, amount: clamp(pose.rebirth / 0.3) * (1 - clamp((pose.rebirth - 1.8) / 0.4)), glints: pose.rebirth < rebirthAt) }
-        if pose.ash >= burnAt {
-            let a = pose.ash - burnAt
-            ashPile(Pixels(ctx: outer, unit: unit, dx: bx + max(0, a - 1.0) * 24, dy: 0), t: t,
-                    amount: clamp(a / 0.4) * (1 - clamp((a - 1.0) / 0.5)), glints: true)
-        }
         if pose.rune >= 0 { fireWall(floor, t: t, age: pose.rune, nudge: pose.nudge, front: false) }
         if pose.orb >= 0 { beacon(head, t: t, age: pose.orb) }
-        if pose.quake >= 0 { shockwave(floor, age: pose.quake) }
+        if pose.ash >= burstAt { climbTrail(body, t: t, age: pose.ash - burstAt) }
+        // each downstroke pushes a faint breath of wind off the wings
+        if sprite !== perch, sprite !== glide, sprite !== hover, pose.ash < 0 {
+            wind(body, t: t, step: busy > 0.1 ? frameTime(busy: busy) : pose.rebirth >= 0 ? 0.06 : flying ? frameTime(busy: 0) : hoverFrameTime)
+        }
 
         // the bird
         var ctx = outer
@@ -156,11 +158,6 @@ enum Phoenix {
             ctx.addFilter(.saturation(1 - 0.95 * out))
             ctx.addFilter(.brightness(0.08 * out))
         }
-        if pose.ash >= 0 {       // charring as it burns
-            let c = clamp((pose.ash - 0.5) / 0.8)
-            ctx.addFilter(.saturation(1 - 0.8 * c))
-            ctx.addFilter(.brightness(-0.35 * c))
-        }
         let rect = CGRect(x: (bx - Double(padLeft)) * unit, y: (by - Double(padTop)) * unit,
                           width: canvas.width * unit, height: canvas.height * unit)
         let image = Image(decorative: sprite, scale: 1).interpolation(.none)
@@ -169,11 +166,11 @@ enum Phoenix {
         // the bird blazing up: its own frame again, added on top
         var glow = 0.0
         if let f = flare { glow = 0.55 * sin(.pi * f / flareLength) }
-        if pose.cast >= 0 { glow = max(glow, 0.6 * (1 - clamp(pose.cast / 0.8))) }
+        if pose.cast >= 0 { glow = max(glow, 0.45 * sin(.pi * clamp(pose.cast / clickBreath))) }
         if pose.feast >= 0 { glow = max(glow, 0.5 * (1 - clamp(pose.feast / 1.2))) }
         if pose.misfire > 0.75 { glow = max(glow, 0.45 * sin(.pi * clamp((pose.misfire - 0.75) / 0.6))) }
-        if pose.rebirth >= rebirthAt { glow = max(glow, 0.8 * (1 - clamp((pose.rebirth - rebirthAt) / 0.9))) }
-        if pose.ash >= 0, pose.ash < burnAt { glow = max(glow, 0.45 * clamp(pose.ash / 0.6)) }
+        if pose.rebirth >= breathAt { glow = max(glow, 0.6 * sin(.pi * clamp((pose.rebirth - breathAt) / breathLength))) }
+        if pose.ash >= 0 { glow = max(glow, pose.ash < burstAt ? 0.9 * clamp(pose.ash / burstAt) : 0.7) }   // gathering its fire
         if glow > 0.02 {
             var g = ctx
             g.blendMode = .plusLighter
@@ -185,15 +182,13 @@ enum Phoenix {
         if pose.rune >= 0 { fireWall(floor, t: t, age: pose.rune, nudge: pose.nudge, front: true) }
         if pose.reveal > 0.5, pose.ash < 0 { embers(body, t: t, busy: max(busy, flying ? 0.6 : 0), fling: pose.fling, misfire: pose.misfire) }
         if let f = flare { burst(body, age: f, length: flareLength, count: 18, colour: nil) }
-        if pose.cast >= 0 { flameRing(body, age: pose.cast) }
         if pose.orb >= 0 { glowingEyes(head, t: t) }
         if pose.feast >= 0 {
             burst(body, age: pose.feast, length: 1.2, count: 24, colour: gold)
             driftingFeather(body, t: t, age: pose.feast, slot: pose.goldSparks)
         }
         if pose.misfire >= 0 { smokePuffs(body, age: pose.misfire) }
-        if pose.rebirth >= 0 { rebirth(floor, age: pose.rebirth) }
-        if pose.ash >= 0 { burning(body, age: pose.ash) }
+        if pose.ash >= 0, pose.ash < burstAt { gather(body, age: pose.ash) }
         counters(floor, t: t, gold: pose.goldSparks, waiting: pose.redSparks)
     }
 
@@ -222,34 +217,6 @@ enum Phoenix {
             let r = 14 + k * (44 + hash(i, 6) * 16)
             px.dot(centre.x + cos(angle) * r, centre.y + sin(angle) * r * 0.8, colour.map { i % 2 == 0 ? $0 : pale } ?? fire(k), 1 - k, size: 2)
             px.dot(centre.x + cos(angle) * (r - 3), centre.y + sin(angle) * (r - 3) * 0.8, colour ?? fire(k + 0.3), (1 - k) * 0.6)
-        }
-    }
-
-    /// Click: a ring of fire bursting out round it.
-    private static func flameRing(_ px: Pixels, age: Double) {
-        guard age < 1.1 else { return }
-        let k = age / 1.1
-        let rx = 12 + age * 55
-        for i in 0 ..< 84 {
-            let a = Double(i) / 84 * 2 * .pi
-            let x = centre.x + cos(a) * rx, y = centre.y + sin(a) * rx * 0.5
-            px.dot(x, y, fire(k), 1 - k, size: 2)
-            px.dot(centre.x + cos(a) * (rx - 3), centre.y + sin(a) * (rx - 3) * 0.5, red, (1 - k) * 0.8, size: 2)
-            let h = Int(2 + hash(i, 8) * 4 * (1 - k))            // flame tongues licking up off the ring
-            for j in 1 ... h { px.dot(x + (j > 2 ? 1 : 0), y - Double(j), fire(Double(j) / 6), 1 - k) }
-        }
-    }
-
-    /// Landing after a drop: a ring of fire racing out over the ground.
-    private static func shockwave(_ px: Pixels, age: Double) {
-        let k = age / 0.9
-        let rx = 6 + age * 62
-        for i in 0 ..< 72 {
-            let a = Double(i) / 72 * 2 * .pi
-            let x = centre.x + cos(a) * rx, y = ground + sin(a) * rx * 0.16
-            px.dot(x, y, fire(k), 1 - k, size: 2)
-            let h = Int(2 + hash(i, 9) * 5 * (1 - k))
-            for j in 1 ... max(1, h) { px.dot(x, y - Double(j), fire(Double(j) / 4), (1 - k) * 0.8) }
         }
     }
 
@@ -337,60 +304,164 @@ enum Phoenix {
         }
     }
 
-    /// A low mound of ash on the ground, with embers glinting in it.
-    private static func ashPile(_ px: Pixels, t: Double, amount: Double, glints: Bool) {
-        guard amount > 0.03 else { return }
-        for dx in -14 ... 14 {
-            let h = Int((4.5 * (1 - pow(Double(dx) / 14, 2))).rounded())
-            for dy in 0 ..< max(1, h) { px.dot(centre.x + Double(dx), ground - Double(dy), (dx + dy) % 3 == 0 ? smoke : ashGrey, amount) }
-        }
-        guard glints else { return }
-        for i in 0 ..< 6 where sin(t * 8 + Double(i) * 2.3) > 0.2 {
-            px.dot(centre.x - 10 + hash(i, 14) * 20, ground - 1 - hash(i, 15) * 2, i % 2 == 0 ? orange : yellow, amount)
-        }
-    }
-
-    /// Arrival: embers spiral up out of the ash, then a pillar of flame and it bursts out.
-    private static func rebirth(_ px: Pixels, age: Double) {
-        if age > 0.3, age < 1.6 {
-            let s = (age - 0.3) / 1.2
-            for i in 0 ..< 40 {
-                let u = clamp(s * 1.3 - hash(i, 16) * 0.3)
-                guard u > 0, u < 1 else { continue }
-                let a = u * 10 + Double(i) / 40 * 2 * .pi
-                let r = 16 * (1 - u) + 3
-                px.dot(centre.x + cos(a) * r, ground - 2 - u * 70, fire(1 - u), 1, size: i % 3 == 0 ? 2 : 1)
-            }
-        }
-        if age > 1.3, age < 1.9 {
-            let b = (age - 1.3) / 0.6
-            for i in 0 ..< 40 {                          // a column of flame tongues shooting up out of the ash
-                let u = clamp(b * 1.6 - hash(i, 23) * 0.6)
-                guard u > 0, u < 1 else { continue }
-                let x = centre.x + (hash(i, 24) - 0.5) * 22 * (1 - u * 0.5)
-                let y = ground - 4 - u * (60 + hash(i, 25) * 30)
-                px.dot(x, y, fire(u), 1 - u * u, size: u < 0.5 ? 3 : 2)
-                px.dot(x, y + 3, fire(u + 0.3), (1 - u) * 0.7, size: 2)
-            }
-            burst(px, age: age - 1.3, length: 0.6, count: 28, colour: nil)
+    /// Each downstroke: a faint breath of air pushed down and back off the wings, gone within half a beat.
+    private static func wind(_ px: Pixels, t: Double, step: Double) {
+        let beat = step * Double(flaps.count)
+        let u = ((t / beat) - 2.0 / 6).truncatingRemainder(dividingBy: 1)   // 0 as the wings start down (frame 3)
+        guard u >= 0, u < 0.5 else { return }
+        let k = u / 0.5
+        for i in 0 ..< 10 {
+            let x = centre.x - 14 + Double(i) * 4 + k * (6 + hash(i, 40) * 6)
+            let y = centre.y + 6 + hash(i, 41) * 6 + k * (16 + hash(i, 42) * 10)
+            px.dot(x, y, .white, 0.22 * (1 - k))
+            if i % 2 == 0 { px.dot(x + 1, y + 1, .white, 0.14 * (1 - k)) }
         }
     }
 
-    /// Goodbye: flames climb all over it, then it crumbles and the ash falls and blows away.
-    private static func burning(_ px: Pixels, age: Double) {
-        let fade = age < burnAt ? clamp(age / 0.6) : 1 - clamp((age - burnAt) / 0.5)
-        for i in 0 ..< 46 {
-            let u = ((age + hash(i, 17) * 0.5) / 0.5).truncatingRemainder(dividingBy: 1)
-            let x = 4 + hash(i, 18) * 62, y = 18 + hash(i, 19) * 70 - u * 12
-            px.dot(x, y, fire(u), fade * (1 - u), size: 2)
-            px.dot(x, y + 2, orange, fade * (1 - u) * 0.6, size: 2)
+    /// Goodbye, wings folded: sparks rushing in from all round as it gathers its power.
+    private static func gather(_ px: Pixels, age: Double) {
+        let k = clamp(age / burstAt)
+        for i in 0 ..< 36 {
+            let u = ((age * 1.6 + hash(i, 43)) ).truncatingRemainder(dividingBy: 1)
+            let a = Double(i) / 36 * 2 * .pi
+            let r = 46 * (1 - u) + 4
+            px.dot(centre.x + cos(a) * r, centre.y + sin(a) * r * 0.85, i % 3 == 0 ? gold : fire(1 - u), k * u, size: u > 0.7 ? 2 : 1)
         }
-        guard age > burnAt else { return }
-        let f = age - burnAt
-        for i in 0 ..< 44 {
-            let x0 = 4 + hash(i, 20) * 62, y0 = 10 + hash(i, 21) * 80
-            let y = min(ground, y0 + f * f * 40 + f * 12)
-            px.dot(x0 + f * 20 * hash(i, 22), y, i % 3 == 0 ? smoke : ashGrey, 1 - f / 1.5)
+    }
+
+    /// Goodbye, after the burst: a column of fire streaming down off it as it shoots up.
+    private static func climbTrail(_ px: Pixels, t: Double, age: Double) {
+        for i in 0 ..< 40 {
+            let u = ((t * 3 + hash(i, 44)) ).truncatingRemainder(dividingBy: 1)
+            let x = centre.x + 4 + (hash(i, 45) - 0.5) * (8 + u * 14)
+            let y = centre.y + 30 + u * 40
+            px.dot(x, y, fire(u), (1 - u) * clamp(age / 0.1), size: u < 0.4 ? 3 : 2)
+        }
+    }
+
+    // MARK: - fire past the window (screen overlays)
+
+    /// Where its beak is in the airborne and wings-spread frames (sprite grid).
+    private static let beak = CGPoint(x: 12, y: 26)
+
+    /// Breathes fire from its beak for `length` s; `dense` is the arrival's torrent, otherwise a click's gout.
+    @MainActor static func breathe(windowOrigin: CGPoint, facingRight: Bool, length: Double, dense: Bool) {
+        overlay(at: beak, windowOrigin: windowOrigin, facingRight: facingRight, for: length + FireBreath.life + 0.1) {
+            FireBreath(start: $0, dir: facingRight ? 1 : -1, unit: RobotView.scale, length: length, dense: dense)
+        }
+    }
+
+    /// Goodbye: a blast of fire and light bursting out of it across the screen.
+    @MainActor static func blast(windowOrigin: CGPoint, facingRight: Bool) {
+        overlay(at: centre, windowOrigin: windowOrigin, facingRight: facingRight, for: Blast.life + 0.1) {
+            Blast(start: $0, unit: RobotView.scale)
+        }
+    }
+
+    /// A see-through, click-through window over the screen under sprite point `art`, for `duration` seconds; `make`
+    /// gets that point in the overlay's view coordinates (y down).
+    @MainActor private static func overlay<V: View>(at art: CGPoint, windowOrigin: CGPoint, facingRight: Bool,
+                                                    for duration: Double, _ make: (CGPoint) -> V) {
+        let px = (CGFloat(padLeft) + art.x) * RobotView.scale, py = (CGFloat(padTop) + art.y) * RobotView.scale
+        let p = CGPoint(x: windowOrigin.x + (facingRight ? RobotView.canvasSize.width - px : px),
+                        y: windowOrigin.y + RobotView.canvasSize.height - py)
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(p) }) ?? NSScreen.main else { return }
+        let window = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: make(CGPoint(x: p.x - screen.frame.minX, y: screen.frame.maxY - p.y)))
+        window.orderFrontRegardless()
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { window.close() }
+    }
+
+    /// A cone of flame tongues pouring out of the beak, widening, rising and dying from white-hot to deep red.
+    struct FireBreath: View {
+        static let life = 0.75
+        let start: CGPoint   // view coordinates, y down
+        let dir: Double      // -1 = to the left
+        let unit: CGFloat
+        let length: Double
+        let dense: Bool
+        var fixedAge: Double?
+        private let began = Date.timeIntervalSinceReferenceDate
+
+        var body: some View {
+            if let fixedAge {
+                canvas(age: fixedAge)
+            } else {
+                TimelineView(.animation) { canvas(age: $0.date.timeIntervalSinceReferenceDate - began) }
+            }
+        }
+
+        private func canvas(age: Double) -> some View {
+            Canvas { c, _ in
+                let px = Pixels(ctx: c, unit: unit, dx: start.x / unit, dy: start.y / unit)
+                let rate = dense ? 1400.0 : 600.0, speed = dense ? 330.0 : 210.0
+                let count = Int(length * rate)
+                for i in 0 ..< count {
+                    let a = age - Double(i) / rate
+                    guard a >= 0, a < Self.life else { continue }
+                    let k = a / Self.life
+                    let dist = speed * a * (1 - 0.4 * a) * (0.7 + 0.6 * hash(i, 50))
+                    let spread = (hash(i, 51) - 0.5) * (0.22 + 0.95 * k) * dist
+                    let x = dir * dist, y = 0.1 * dist + spread - 34 * a * a
+                    let size = (dense ? 3 : 2) + (dense ? 8 : 5) * k
+                    px.dot(x - size / 2, y - size / 2, fire(k * 0.95 + hash(i, 52) * 0.15), (1 - k * k) * 0.9, size: size.rounded())
+                }
+                // a white-hot core at the beak while it pours
+                if age < length { for j in 0 ..< 10 { px.dot(dir * Double(j) * 2.5 - 1, -1, j < 4 ? .white : pale, 1, size: dense ? 3 : 2) } }
+            }
+        }
+    }
+
+    /// Fire and gold flying out in every direction behind a ring of light, from a white flash at its heart.
+    struct Blast: View {
+        static let life = 1.1
+        let start: CGPoint
+        let unit: CGFloat
+        var fixedAge: Double?
+        private let began = Date.timeIntervalSinceReferenceDate
+
+        var body: some View {
+            if let fixedAge {
+                canvas(age: fixedAge)
+            } else {
+                TimelineView(.animation) { canvas(age: $0.date.timeIntervalSinceReferenceDate - began) }
+            }
+        }
+
+        private func canvas(age: Double) -> some View {
+            Canvas { c, _ in
+                guard age < Self.life else { return }
+                let px = Pixels(ctx: c, unit: unit, dx: start.x / unit, dy: start.y / unit)
+                let k = age / Self.life
+                let out = 1 - pow(1 - k, 3)   // fast at first, slowing as it spreads
+                // the flash: a solid white-hot ball that swells and fades in the first moment
+                let flash = 1 - clamp(age / 0.3)
+                if flash > 0 {
+                    let r = 14 + 46 * age / 0.3
+                    var y = -r
+                    while y <= r {
+                        let half = (r * r - y * y).squareRoot()
+                        var x = -half
+                        while x <= half { px.dot(x, y, hypot(x, y) < r * 0.5 ? .white : hypot(x, y) < r * 0.8 ? pale : yellow, flash, size: 4); x += 4 }
+                        y += 4
+                    }
+                }
+                // a storm of flames and gold flung out in every direction, densest at the heart, falling a little as they go
+                for i in 0 ..< 1100 {
+                    let a = Double(i) / 1100 * 2 * .pi + hash(i, 53) * 0.4
+                    let r = (16 + 280 * pow(hash(i, 54), 0.8)) * out
+                    let size = (9 - 6 * k) * (0.5 + 0.7 * hash(i, 56))
+                    px.dot(cos(a) * r - size / 2, sin(a) * r * 0.85 + 40 * k * k - size / 2,
+                           i % 6 == 0 ? gold : fire(k * 0.75 + hash(i, 55) * 0.3), (1 - k * k) * 0.95, size: max(1, size.rounded()))
+                }
+            }
         }
     }
 }

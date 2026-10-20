@@ -63,7 +63,16 @@ struct RobotView: View {
         }
         .frame(width: Self.canvasSize.width, height: Self.canvasSize.height)
         .overlay(alignment: .topLeading) {
-            if pose.showQuit {
+            if pose.showQuit, Phoenix.isSelected {
+                // the phoenix's own close button: a small flame in its gold
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Color(red: 1, green: 0.72, blue: 0.2))
+                    .shadow(color: Color(red: 0.25, green: 0.03, blue: 0.0), radius: 0, x: 1, y: 1)
+                    .frame(width: Self.quitRect.width, height: Self.quitRect.height)
+                    .offset(x: Self.quitRect.minX, y: Self.quitRect.minY)
+                    .allowsHitTesting(false)
+            } else if pose.showQuit {
                 // the grave-cross is the knight's; Wizzy shows a crescent moon in his staff star's gold, Faelis a green blossom
                 let mage = Mage.isSelected, elf = Elf.isSelected
                 Text(mage ? "☾" : elf ? "✿" : "†")

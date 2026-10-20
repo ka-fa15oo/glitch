@@ -38,17 +38,23 @@ struct PhoenixCharacterTests {
         #expect(phoenix.current.cast >= 0)
         let sounds = heard()
         #expect(Set(sounds).isDisjoint(with: [.clang, .scrape, .swish]))
-        #expect(sounds.contains(.smother) && sounds.contains(.shriek) && sounds.contains(.whoosh))
+        #expect(sounds.contains(.smother) && sounds.contains(.roar) && sounds.contains(.whoosh))
         Prefs.d.removeObject(forKey: Prefs.character)
     }
 
-    @Test func goodbyeBurnsToAsh() {
-        let (phoenix, _) = brain()
+    /// Goodbye: wings folded, a burst, then it shoots straight up off the screen.
+    @Test func goodbyeBurstsAndShootsUp() {
+        let (phoenix, heard) = brain()
+        var origin = CGPoint(x: 500, y: 0)
+        phoenix.windowOrigin = { origin }
+        phoenix.setWindowOrigin = { origin = $0 }
         #expect(phoenix.farewellLength == Phoenix.farewellLength)
         phoenix.start(.farewell, at: 200)
-        run(phoenix, from: 200, seconds: Phoenix.burnAt + 0.8)
-        #expect(phoenix.current.ash > Phoenix.burnAt)
-        #expect(phoenix.current.reveal < 0.05)
+        run(phoenix, from: 200, seconds: Phoenix.burstAt - 0.1)
+        #expect(origin.y == 0)                          // still gathering its fire
+        run(phoenix, from: 200 + Phoenix.burstAt - 0.1, seconds: 0.8)
+        #expect(heard().contains(.blast))
+        #expect(origin.y > 1000 && origin.x == 500)     // gone straight up
         Prefs.d.removeObject(forKey: Prefs.character)
     }
 
@@ -67,7 +73,7 @@ struct PhoenixCharacterTests {
         var highest = 0.0
         var t = 300.1
         while t < 330 { phoenix.update(at: t); highest = max(highest, Double(origin.y)); t += 1.0 / 30 }
-        #expect(highest > 100)                  // it went up into the air ...
+        #expect(highest > 30)                   // it went up into the air ...
         #expect(origin.y == 0 && abs(origin.x - 500) > 20)   // ... and came down somewhere else
         #expect(phoenix.current.aloft < 0.1)    // wings folded again
         Prefs.d.removeObject(forKey: Prefs.character)

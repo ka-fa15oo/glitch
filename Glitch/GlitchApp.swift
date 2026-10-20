@@ -570,15 +570,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "misfire": pose.misfire = e; if e < 0.5 { pose.eyes = .wide }
                 case "call": pose.orb = e; pose.eyes = .happy; pose.bodyDY = -4
                 // the phoenix (run with `-character phoenix`): "rebirth:1.5", "ash:1.8", "quake:0.3", "carry:1", "pcast:0.2"
-                case "rebirth": pose.rebirth = e; pose.reveal = max(0, min(1, (e - Phoenix.rebirthAt) / 0.3)); pose.redSparks = 0; pose.goldSparks = 0
-                case "ash": pose.ash = e; pose.reveal = 1 - max(0, min(1, (e - Phoenix.burnAt) / 0.5))
+                case "rebirth": pose.rebirth = e; pose.aloft = 1; pose.redSparks = 0; pose.goldSparks = 0
+                case "ash": pose.ash = e
                 case "quake": pose.quake = e
                 case "carry": pose.carried = true; pose.carriedAmount = e; pose.fling = 0.8; pose.hang = 0.1
                 case "pcast": pose.cast = e
-                // its flight: "fly:1" beating, "fly:0" gliding (banked), "hover:<time>", "threat:1"
+                // its flight: "fly:1" beating, "fly:0" gliding (banked), "hover:<time>"
                 case "fly": pose.aloft = 1; pose.beat = e; pose.bank = e > 0.5 ? 0 : 0.2; pose.fling = 0.6
                 case "hover": pose.aloft = 1; pose.hovering = true
-                case "threat": pose.threat = e
                 case "bud": pose.rune = e
                 case "wilt": pose.misfire = e; pose.eyes = e < 0.3 ? .closed : .happy
                 case "bloom": pose.feast = e; pose.eyes = .happy
@@ -602,6 +601,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             : mood.hasPrefix("hole:")
             ? AnyView(MageCosmos.HoleView(center: CGPoint(x: 350, y: 250), fixedAge: Double(mood.dropFirst(5)) ?? 1.5)
                 .frame(width: 700, height: 500).background(Color(red: 0.09, green: 0.08, blue: 0.14)))
+            : mood.hasPrefix("breath:")
+            ? AnyView(Phoenix.FireBreath(start: CGPoint(x: 560, y: 150), dir: -1, unit: 2, length: Phoenix.breathLength, dense: true,
+                                         fixedAge: Double(mood.dropFirst(7)) ?? 1)
+                .frame(width: 600, height: 300).background(Color(red: 0.11, green: 0.11, blue: 0.13)))
+            : mood.hasPrefix("blast:")
+            ? AnyView(Phoenix.Blast(start: CGPoint(x: 350, y: 300), unit: 2, fixedAge: Double(mood.dropFirst(6)) ?? 0.3)
+                .frame(width: 700, height: 600).background(Color(red: 0.11, green: 0.11, blue: 0.13)))
             : mood.hasPrefix("streak")
             ? AnyView(Mage.ShootingStar(start: CGPoint(x: 560, y: 260), facingRight: false, unit: 2,
                                         fixedAge: Double(mood.dropFirst(6)) ?? 0.5)
