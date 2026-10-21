@@ -66,9 +66,9 @@ struct RobotView: View {
         .frame(width: Self.canvasSize.width, height: Self.canvasSize.height)
         .overlay(alignment: .topLeading) {
             if pose.showQuit, Phoenix.isSelected {
-                // the phoenix's own close button: the sun, in its gold
-                Text("☀\u{FE0E}")   // text style, not the emoji
-                    .font(.system(size: 18, weight: .bold, design: .serif))
+                // the phoenix's own close button: a comet, in its gold (the sun is its finished-session counter)
+                Text("☄\u{FE0E}")   // text style, not the emoji
+                    .font(.system(size: 23, weight: .bold, design: .serif))   // a thin glyph: larger than the others' 18
                     .foregroundStyle(Color(red: 1, green: 0.72, blue: 0.2))
                     .shadow(color: Color(red: 0.25, green: 0.03, blue: 0.0), radius: 0, x: 1, y: 1)
                     .frame(width: Self.quitRect.width, height: Self.quitRect.height)

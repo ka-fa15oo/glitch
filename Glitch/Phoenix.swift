@@ -194,10 +194,10 @@ enum Phoenix {
         if pose.orb >= 0 { glowingEyes(head, t: t) }
         if pose.feast >= 0 {
             burst(body, age: pose.feast, length: 1.2, count: 24, colour: gold)
-            driftingFeather(body, t: t, age: pose.feast, slot: pose.goldSparks)
+            risingSun(body, age: pose.feast, sprite: sprite, waiting: pose.redSparks, gold: pose.goldSparks)
         }
         if pose.misfire >= 0 { smokePuffs(body, age: pose.misfire) }
-        counters(floor, t: t, gold: pose.goldSparks, waiting: pose.redSparks)
+        counters(body, t: t, sprite: sprite, waiting: pose.redSparks, gold: pose.goldSparks)
     }
 
     // MARK: - effects
@@ -351,39 +351,59 @@ enum Phoenix {
         }
     }
 
-    /// One small golden feather (5 art px tall at scale 1).
-    private static func feather(_ px: Pixels, _ x: Double, _ y: Double, _ opacity: Double = 1, scale s: Double = 1) {
-        let shape: [(Double, Double, Color)] = [(0, 0, pale), (0, 1, gold), (-1, 1, yellow), (0, 2, gold), (-1, 2, orange), (0, 3, gold), (0, 4, orange)]
-        for (dx, dy, _) in shape {   // a dark rim, so the gold reads against the red plumage
-            for (ox, oy) in [(-1.0, 0.0), (1, 0), (0, -1), (0, 1)] { px.dot(x + (dx + ox) * s, y + (dy + oy) * s, outline, opacity, size: s) }
+    /// Counter glyphs, one character per art pixel: o rim, K/R/r reds, Y/P/O/G golds, . clear.
+    private static let eyeGlyph = ["..ooooo..", ".oKRRRKo.", "oRRYYYRRo", "oRYYoYYRo", "oRRYYYRRo", ".oKRRRKo.", "..ooooo.."]
+    private static let sunGlyph = ["....Y....", ".Y..Y..Y.", "..oGGGo..", ".oGPPPGo.", "YYGPPPGYY", ".oGPPPGo.", "..oGGGo..", ".Y..Y..Y.", "....Y...."]
+    private static let glyphColours: [Character: Color] = [
+        "o": outline, "K": Color(red: 0.43, green: 0.03, blue: 0.04), "R": red, "Y": yellow, "P": pale, "G": gold, "O": orange,
+    ]
+
+    /// A glyph centred on (x, y) in a soft halo of its own colour.
+    private static func glyph(_ px: Pixels, _ rows: [String], _ x: Double, _ y: Double, halo: Color, glow: Double, opacity: Double = 1) {
+        let w = Double(rows[0].count), h = Double(rows.count), r = max(w, h) / 2 + 3
+        for dx in stride(from: -r, through: r, by: 1) {
+            for dy in stride(from: -r, through: r, by: 1) {
+                let d = (dx * dx + dy * dy).squareRoot()
+                if d <= r { px.dot(x + dx, y + dy, halo, glow * opacity * (1 - d / (r + 0.5))) }
+            }
         }
-        for (dx, dy, c) in shape { px.dot(x + dx * s, y + dy * s, c, opacity, size: s) }
+        let x0 = x - (w / 2).rounded(.down), y0 = y - (h / 2).rounded(.down)
+        for (j, row) in rows.enumerated() {
+            for (i, ch) in row.enumerated() { if let c = glyphColours[ch] { px.dot(x0 + Double(i), y0 + Double(j), c, opacity) } }
+        }
     }
 
-    /// Where the n-th finished session's golden feather rests: a column beside it, filling up from the ground.
-    private static func slot(_ n: Int) -> CGPoint { CGPoint(x: 74 - Double(n / 8) * 4, y: ground - 6 - Double(n % 8) * 7) }
+    /// At most this many counters show in the row over its head.
+    /// shortcut: anything past seven isn't shown (the window has no room above the flying frames); add a second row if that ever matters.
+    static let maxMarks = 7
 
-    /// A session finished: a golden feather drifts down from above its head into the column.
-    private static func driftingFeather(_ px: Pixels, t: Double, age: Double, slot n: Int) {
+    /// Where the i-th of n counters sits: one row centred over its head, clear of the crest in whichever frame it shows.
+    private static func mark(_ i: Int, of n: Int, sprite: CGImage) -> CGPoint {
+        let y: Double = sprite === perch ? 26 : sprite === hover ? 9 : sprite === glide ? 3 : -1
+        return CGPoint(x: 20 + (Double(i) - Double(n - 1) / 2) * 9, y: y)
+    }
+
+    /// Crimson eyes for sessions waiting on the user, then golden suns for finished ones, in a row over its head.
+    private static func counters(_ px: Pixels, t: Double, sprite: CGImage, waiting: Int, gold: Int) {
+        let red = min(waiting, maxMarks), n = min(waiting + gold, maxMarks)
+        for i in 0 ..< n {
+            let p = mark(i, of: n, sprite: sprite)
+            if i < red {   // each eye's glow breathes on its own
+                glyph(px, eyeGlyph, p.x, p.y, halo: Color(red: 0.9, green: 0.08, blue: 0.08), glow: 0.3 + 0.15 * sin(t * 3 + Double(i) * 1.3))
+            } else {
+                glyph(px, sunGlyph, p.x, p.y, halo: Self.gold, glow: 0.3)
+            }
+        }
+    }
+
+    /// A session finished: a golden sun rises off its crest and settles into the row as the newest counter.
+    private static func risingSun(_ px: Pixels, age: Double, sprite: CGImage, waiting: Int, gold: Int) {
         guard age > 0.3, age < 2.0 else { return }
-        let k = clamp((age - 0.3) / 1.7)
-        let to = slot(n), from = CGPoint(x: crest.x, y: crest.y - 8)
-        let x = from.x + (to.x - from.x) * sqrt(k) + sin(k * 9) * 3 * (1 - k)
-        let y = from.y - 6 * sin(.pi * min(1, k * 2)) + (to.y - from.y) * k * k
-        feather(px, x, y, scale: k < 0.85 ? 2 : 1)
-    }
-
-    /// Golden feathers for finished sessions (right), little red flames for sessions waiting on the user (left).
-    private static func counters(_ px: Pixels, t: Double, gold: Int, waiting: Int) {
-        for n in 0 ..< min(gold, 24) {
-            let p = slot(n)
-            feather(px, p.x + (sin(t * 1.4 + Double(n)) * 0.6).rounded(), p.y)
-        }
-        for n in 0 ..< min(waiting, 16) {
-            let x = 0 - Double(n / 8) * 4, y = ground - 4 - Double(n % 8) * 6
-            let flick = sin(t * 11 + Double(n) * 2) > 0
-            px.dot(x, y, red, size: 2); px.dot(x, y - 1, orange); px.dot(x + 1, y - (flick ? 2 : 1), yellow)
-        }
+        let n = min(waiting + gold + 1, maxMarks), i = n - 1
+        guard i >= min(waiting, maxMarks) else { return }
+        let k = ease((age - 0.3) / 1.4)
+        let to = mark(i, of: n, sprite: sprite), from = CGPoint(x: crest.x, y: crest.y + (sprite === perch ? perchDrop : 0))
+        glyph(px, sunGlyph, from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k, halo: Self.gold, glow: 0.5, opacity: clamp((age - 0.3) / 0.3))
     }
 
     /// An error: smoke rising off the extinguished plumage.
