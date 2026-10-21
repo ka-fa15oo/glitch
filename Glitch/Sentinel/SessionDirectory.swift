@@ -8,7 +8,7 @@ import AppKit
 /// Terminal sessions have no such file: their terminal app is brought forward instead.
 @MainActor
 enum SessionDirectory {
-    struct Entry { let localID: String; let title: String }
+    struct Entry { let localID: String; let title: String; let lastFocused: Date? }
 
     static var root = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/Claude/claude-code-sessions", isDirectory: true)
@@ -18,6 +18,12 @@ enum SessionDirectory {
     static func entry(for sessionID: String) -> Entry? {
         if cache[sessionID] == nil, Date().timeIntervalSince(cachedAt) > 5 { reload() }
         return cache[sessionID]
+    }
+
+    /// When the user last had this session open in the Claude app (re-read every 5 s: the file changes as they browse).
+    static func lastFocused(for sessionID: String) -> Date? {
+        if Date().timeIntervalSince(cachedAt) > 5 { reload() }
+        return cache[sessionID]?.lastFocused
     }
 
     /// The title shown in the list: the desktop title, else the first 6 characters of the id.
@@ -56,7 +62,8 @@ enum SessionDirectory {
                   let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let cli = object["cliSessionId"] as? String,
                   let local = object["sessionId"] as? String else { continue }
-            found[cli] = Entry(localID: local, title: object["title"] as? String ?? String(cli.prefix(6)))
+            let focused = (object["lastFocusedAt"] as? Double).map { Date(timeIntervalSince1970: $0 / 1000) }
+            found[cli] = Entry(localID: local, title: object["title"] as? String ?? String(cli.prefix(6)), lastFocused: focused)
         }
         cache = found
     }

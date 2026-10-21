@@ -66,6 +66,16 @@ final class SessionStore {
         onChange?()
     }
 
+    /// The user looked at these sessions in the Claude app without clicking Glitch: finished or failed ones are seen.
+    func markViewed(lastFocused: (String) -> Date?) {
+        let seen = sessions.values.filter { status in
+            (status.state == .finished || status.state == .error) && (lastFocused(status.id).map { $0 > status.since } ?? false)
+        }
+        guard !seen.isEmpty else { return }
+        for status in seen { sessions[status.id] = nil }
+        onChange?()
+    }
+
     /// Sessions that died without an end event stop showing after a day of silence.
     func expire(now: Date) {
         let dead = lastEvent.filter { now.timeIntervalSince($0.value) > Self.deadAfter }.map(\.key)

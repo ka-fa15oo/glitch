@@ -86,6 +86,14 @@ struct SessionStoreTests {
         #expect(store.visible.count == 1)
     }
 
+    @Test func markViewedClearsGoldFocusedAfterFinish() {
+        store.apply(e("A", .finished, at: 10))
+        store.apply(e("B", .finished, at: 10))
+        store.apply(e("C", .permission, at: 10))
+        store.markViewed { id in Date(timeIntervalSince1970: id == "B" ? 5 : 20) }   // A and C focused later, B earlier
+        #expect(Set(store.visible.map(\.id)) == ["B", "C"])
+    }
+
     @Test func endedRemovesSession() {
         store.apply(e("A", .question))
         store.apply(e("A", .ended, at: 1))

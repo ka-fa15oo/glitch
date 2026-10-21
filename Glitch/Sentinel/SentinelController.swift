@@ -66,6 +66,7 @@ final class SentinelController {
     private func tick() {
         let now = Date()
         store.expire(now: now)
+        store.markViewed { SessionDirectory.lastFocused(for: $0) }
         if !store.reminderDue(now: now).isEmpty { brain.remindPermission() }
         if hovering { refreshList() }   // keeps the ages current
     }
