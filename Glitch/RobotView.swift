@@ -129,29 +129,82 @@ struct RobotView: View {
 
     // MARK: - slash wave
 
-    /// A crescent of steel-white light that leaves the blade at the end of the cut and flies forward, thinning out.
-    private static func drawWave(_ ctx: GraphicsContext, unit: CGFloat, age: Double) {
-        guard age >= 0, age < 0.55 else { return }
-        let p = age / 0.55
-        let r = 26.0 * (0.8 + 0.4 * p)
-        let c1 = CGPoint(x: 28 - 95 * p, y: 52 - 14 * p)                     // forward is to the left, a little up
-        let c2 = CGPoint(x: c1.x + 0.55 * r, y: c1.y - 0.25 * r)             // the bite taken out of the disc leaves a crescent
-        var white = Path(), blue = Path(), deep = Path()
-        for y in Int(c1.y - r) ... Int(c1.y + r) {
-            for x in Int(c1.x - r) ... Int(c1.x + r) {
-                let px = Double(x) + 0.5, py = Double(y) + 0.5
-                let d1 = hypot(px - c1.x, py - c1.y)
-                if d1 >= r || hypot(px - c2.x, py - c2.y) < r { continue }
-                let rim = r - d1                                              // distance in from the outer edge
-                let rect = CGRect(x: CGFloat(x) * unit, y: CGFloat(y) * unit, width: unit, height: unit)
-                if rim < 1.6 { white.addRect(rect) } else if rim < 4.5 { blue.addRect(rect) } else { deep.addRect(rect) }
+    /// Where an art pixel of the knight is on screen (AppKit points, origin bottom-left).
+    static func screenPoint(art: CGPoint, windowOrigin: CGPoint, facingRight: Bool) -> CGPoint {
+        let px = (CGFloat(padLeft) + art.x) * scale, py = (CGFloat(padTop) + art.y) * scale
+        return CGPoint(x: windowOrigin.x + (facingRight ? canvasSize.width - px : px),
+                       y: windowOrigin.y + canvasSize.height - py)
+    }
+
+    /// The screen under a point (AppKit coordinates), falling back to the main screen.
+    static func screen(containing point: CGPoint) -> NSScreen? {
+        NSScreen.screens.first(where: { $0.frame.contains(point) }) ?? NSScreen.main
+    }
+
+    /// Opens a see-through, click-through window over `screen` for `duration` seconds, so effects can fly past the pet.
+    @MainActor static func presentOverlay<V: View>(on screen: NSScreen, for duration: Double, _ root: V) {
+        let window = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: root)
+        window.orderFrontRegardless()
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { window.close() }
+    }
+
+    static let slashSpeed = 173.0      // art px per second; the wave used to cover 95 px in 0.55 s and then vanish
+
+    /// The crescent of steel-white light that leaves the blade at the end of the cut and flies on across the screen.
+    @MainActor static func launchSlashWave(windowOrigin: CGPoint, facingRight: Bool) {
+        let blade = screenPoint(art: CGPoint(x: 28, y: 52), windowOrigin: windowOrigin, facingRight: facingRight)
+        guard let screen = screen(containing: blade) else { return }
+        let dir: CGFloat = facingRight ? 1 : -1                                  // forward is left, or right when the knight faces right
+        let toEdge = dir > 0 ? screen.frame.maxX - blade.x : blade.x - screen.frame.minX
+        let life = Double(toEdge) / (slashSpeed * scale) + 0.6
+        presentOverlay(on: screen, for: life, SlashWave(start: CGPoint(x: blade.x - screen.frame.minX, y: screen.frame.maxY - blade.y),
+                                                        dir: dir, unit: scale, life: life))
+    }
+
+    /// The wave in screen coordinates (y down): it grows a little, drifts up and thins out as it flies.
+    struct SlashWave: View {
+        let start: CGPoint      // where it leaves the blade, view coordinates
+        let dir: CGFloat        // +1 flies right, -1 flies left
+        let unit: CGFloat
+        let life: Double        // seconds until it has left the screen
+        private let began = Date()
+
+        var body: some View {
+            TimelineView(.animation) { timeline in
+                Canvas { ctx, _ in
+                    let age = timeline.date.timeIntervalSince(began)
+                    let grow = min(1, age / 0.55)
+                    let r = 26 * unit * (0.8 + 0.4 * grow)
+                    let c1 = CGPoint(x: start.x + dir * RobotView.slashSpeed * unit * age, y: start.y - 14 * unit * grow)
+                    let c2 = CGPoint(x: c1.x - dir * 0.55 * r, y: c1.y - 0.25 * r)     // the bite leaves a crescent on the leading side
+                    let q = min(1, age / life)
+                    var white = Path(), blue = Path(), deep = Path()
+                    for gy in Int(((c1.y - r) / unit).rounded(.down)) ... Int(((c1.y + r) / unit).rounded(.up)) {
+                        for gx in Int(((c1.x - r) / unit).rounded(.down)) ... Int(((c1.x + r) / unit).rounded(.up)) {
+                            let px = (Double(gx) + 0.5) * unit, py = (Double(gy) + 0.5) * unit
+                            let d1 = hypot(px - c1.x, py - c1.y)
+                            if d1 >= r || hypot(px - c2.x, py - c2.y) < r { continue }
+                            let rim = r - d1                                           // distance in from the outer edge
+                            let rect = CGRect(x: CGFloat(gx) * unit, y: CGFloat(gy) * unit, width: unit, height: unit)
+                            if rim < 1.6 * unit { white.addRect(rect) } else if rim < 4.5 * unit { blue.addRect(rect) } else { deep.addRect(rect) }
+                        }
+                    }
+                    var layer = ctx
+                    layer.opacity = 0.95 * (1 - q * q)
+                    layer.fill(deep, with: .color(Color(red: 0.28, green: 0.38, blue: 0.58)))
+                    layer.fill(blue, with: .color(Color(red: 0.55, green: 0.72, blue: 0.90)))
+                    layer.fill(white, with: .color(Color(red: 0.93, green: 0.97, blue: 1.0)))
+                }
             }
         }
-        var layer = ctx
-        layer.opacity = 0.95 * (1 - p * p)
-        layer.fill(deep, with: .color(Color(red: 0.28, green: 0.38, blue: 0.58)))
-        layer.fill(blue, with: .color(Color(red: 0.55, green: 0.72, blue: 0.90)))
-        layer.fill(white, with: .color(Color(red: 0.93, green: 0.97, blue: 1.0)))
     }
 
     // MARK: - sparks
@@ -222,7 +275,6 @@ struct RobotView: View {
             }
         } else {
             drawSide(&outer, unit: unit, size: size, t: t, pose: pose, shadow: true)
-            if pose.splashAge >= 0 { BloodRise.drawSplash(&outer, unit: unit, age: pose.splashAge, t: t) }
         }
     }
 
@@ -463,8 +515,6 @@ struct RobotView: View {
         draw(Sprite.sword, ctx, unit: unit, size: size,
              translate: CGPoint(x: swordGrip.x - ref.spriteGrip.x, y: swordGrip.y - ref.spriteGrip.y),
              angle: swordRot, pivot: ref.spriteGrip)
-
-        if pose.waveAge >= 0 { drawWave(ctx, unit: unit, age: pose.waveAge) }
 
         // gold sparks where the point scrapes the ground, and the last one flying to the shoulder
         if pose.scrapeAge >= 0 || pose.sparkFlight >= 0 {
