@@ -10,6 +10,7 @@ enum Elf {
     private static let wings = Sprite.loadShared("elf_wings")
     private static let wand = Sprite.loadShared("elf_wand")
     private static let shadow = Sprite.loadShared("elf_shadow")
+    private static let hairBack = Sprite.loadShared("elf_hairBack")   // the hair behind her head, turning with it
     /// The near arm raised to wave at you (question call); the forearm waves about `elbowUp`.
     private static let armUpper = Sprite.loadShared("elf_armNearUpperUp"), armFore = Sprite.loadShared("elf_armNearForeUp")
     private static let elbowUp = CGPoint(x: 48, y: 28)
@@ -158,9 +159,11 @@ enum Elf {
         put(set.cloak, ctx, dy: breath * 0.5)
 
         let headDY = breath * 0.8 + pose.headDY
+        put(hairBack, ctx, dy: headDY, angle: pose.headRot, pivot: neck)
         put(set.head, ctx, dy: headDY, angle: pose.headRot, pivot: neck)
         if let eyes = set.eyes[pose.eyes] {
-            put(eyes, ctx, dx: Double(pose.eyeDX), dy: headDY, angle: pose.headRot, pivot: neck)
+            // looking left more than 1 px would push the left eye's lashes off her face
+            put(eyes, ctx, dx: Double(max(-1, pose.eyeDX)), dy: headDY, angle: pose.headRot, pivot: neck)
         }
         if calling > 0.5 {
             // "over here!": the hand high above her head, waving

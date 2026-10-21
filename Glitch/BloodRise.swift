@@ -121,15 +121,52 @@ enum BloodRise {
         render(&ctx, unit: unit, list: splashParticles, age: age, t: t)
     }
 
+    /// Plays the landing splash over the whole screen, with the knight's feet where it landed, so the blood can fly past the pet.
+    @MainActor static func launchSplash(windowOrigin: CGPoint, facingRight: Bool) {
+        let feet = RobotView.screenPoint(art: CGPoint(x: 38, y: ground), windowOrigin: windowOrigin, facingRight: facingRight)
+        guard let screen = RobotView.screen(containing: feet) else { return }
+        let origin = CGPoint(x: feet.x - screen.frame.minX, y: screen.frame.maxY - feet.y)
+        RobotView.presentOverlay(on: screen, for: 3.0, SplashOverlay(origin: origin, facingRight: facingRight, unit: RobotView.scale))
+    }
+
+    /// The splash drawn in screen coordinates, with `origin` (view coordinates, y down) under the knight's feet.
+    struct SplashOverlay: View {
+        let origin: CGPoint
+        let facingRight: Bool
+        let unit: CGFloat
+        private let began = Date()
+
+        var body: some View {
+            TimelineView(.animation) { timeline in
+                Canvas { ctx, _ in
+                    var c = ctx
+                    c.translateBy(x: origin.x, y: origin.y)
+                    if facingRight { c.scaleBy(x: -1, y: 1) }
+                    c.translateBy(x: -38 * unit, y: -ground * unit)
+                    BloodRise.drawSplash(&c, unit: unit, age: timeline.date.timeIntervalSince(began), t: 0)
+                }
+            }
+        }
+    }
+
     private static func render(_ ctx: inout GraphicsContext, unit: CGFloat, list: [Particle], age: Double, t: Double) {
-        let x0 = -16, y0 = -6, w = 108, h = 106           // art-pixel window the blood can reach
+        // every particle still around, as (centre, radius) in art pixels
+        let shapes: [(x: Double, y: Double, r: Double)] = list.compactMap { p in
+            guard let s = state(p, age: age, t: t), s.scale > 0.02 else { return nil }
+            return (s.x, min(s.y, ground + 1.5), p.radius * s.scale)
+        }
+        guard !shapes.isEmpty else { return }
+        // the pixel grid covers all of it, so the blood is never cut off at an arbitrary edge
+        var lo = (x: Double.infinity, y: Double.infinity), hi = (x: -Double.infinity, y: -Double.infinity)
+        for s in shapes {
+            lo = (min(lo.x, s.x - s.r), min(lo.y, s.y - s.r))
+            hi = (max(hi.x, s.x + s.r), max(hi.y, s.y + s.r))
+        }
+        let x0 = Int(lo.x.rounded(.down)), y0 = Int(lo.y.rounded(.down))
+        let w = Int(hi.x.rounded(.up)) - x0 + 1, h = Int(hi.y.rounded(.up)) - y0 + 1
         var density = [Float](repeating: 0, count: w * h)
-        var any = false
-        for p in list {
-            guard let s = state(p, age: age, t: t), s.scale > 0.02 else { continue }
-            any = true
-            let r = p.radius * s.scale
-            let cx = s.x - Double(x0), cy = min(s.y, ground + 1.5) - Double(y0)
+        for s in shapes {
+            let r = s.r, cx = s.x - Double(x0), cy = s.y - Double(y0)
             let ix0 = max(0, Int((cx - r).rounded(.down))), ix1 = min(w - 1, Int((cx + r).rounded(.up)))
             let iy0 = max(0, Int((cy - r).rounded(.down))), iy1 = min(h - 1, Int((cy + r).rounded(.up)))
             if ix0 > ix1 || iy0 > iy1 { continue }
@@ -141,7 +178,6 @@ enum BloodRise {
                 }
             }
         }
-        if !any { return }
 
         var layers = [Path(), Path(), Path(), Path()]   // dark, body, mid, light
         let threshold: Float = 0.3

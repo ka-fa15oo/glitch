@@ -153,8 +153,17 @@ def build():
                 if im.getpixel((x, y))[:3] == RAMPS["hair"][2][:3] and y % 5:
                     im.putpixel((x, y), RAMPS["hair"][3])
 
-    parts["cape"] = combine("cape", Layer("leaf", [CAPE], seed=37, grit=0.02), Layer("hair", [HAIR], seed=41, grit=0.03),
-                            extra=cape_extra)
+    hair = Layer("hair", [HAIR], seed=41, grit=0.03)
+    HAIR_SPLIT = 31                                            # above this the hair turns with the head (hairBack)
+
+    def cape_extra(im, inner=cape_extra):
+        im.paste((0, 0, 0, 0), (0, 0, W, HAIR_SPLIT))           # the cape starts below; this clears only hair
+        inner(im)
+
+    parts["cape"] = combine("cape", Layer("leaf", [CAPE], seed=37, grit=0.02), hair, extra=cape_extra)
+    back = hair.img.copy()
+    back.paste((0, 0, 0, 0), (0, HAIR_SPLIT, W, H))
+    parts["hairBack"] = save(back, "hairBack")
 
     # ------------------------------------------------------------------ dress: cream, green belt and leafy hem
     NECK = [(37, 27), (42, 27), (42, 36), (37, 36)]
@@ -210,10 +219,8 @@ def build():
     EAR = [(46, 17), (54, 11), (49, 21), (46, 22)]
 
     def head_extra(im):
-        put(im, [(35, 25), (39, 25)], rgb("c8706c"))             # smile corners
-        put(im, [(36, 26), (37, 26), (38, 26)], LIP)            # always smiling, lips closed
+        put(im, [(36, 26), (37, 26)], LIP)                      # a small, calm mouth: a hint of a smile, no corners
         put(im, [(34, 17), (35, 16), (36, 16), (39, 16), (40, 16), (41, 17)], rgb("a8761e"))   # soft raised brows
-        put(im, [(35, 23), (36, 23), (40, 23), (41, 23)], rgb("f2a09a"))                       # rosy cheeks
         put(im, [(33, 22)], RAMPS["skin"][1])                  # nose shadow
         put(im, [(x, 9 + (x - 41) ** 2 // 14) for x in range(32, 51)], RAMPS["leaf"][2])   # crown band
         put(im, [(x, 8 + (x - 41) ** 2 // 14) for x in range(33, 50, 2)], RAMPS["leaf"][3])
@@ -233,11 +240,12 @@ def build():
         put(img, shine, (236, 255, 240, 255))
         save(img, name)
 
-    eyes("eyes_open", [(35, 21), (36, 21), (40, 21), (41, 21)], [(35, 20), (36, 20), (40, 20), (41, 20)],
-         [(33, 18), (34, 19), (35, 19), (36, 19), (39, 19), (40, 19), (41, 19), (42, 18)], [])
-    eyes("eyes_half", [(35, 21), (36, 21), (40, 21), (41, 21)], [], [(34, 20), (35, 20), (36, 20), (39, 20), (40, 20), (41, 20)])
+    # wider than tall: three pixels across, a dark lid row over one row of iris with a white shine, a lash flick at each outer corner
+    eyes("eyes_open", [(34, 21), (35, 21), (36, 21), (39, 21), (40, 21), (41, 21)], [(34, 20), (35, 20), (36, 20), (39, 20), (40, 20), (41, 20)],
+         [(33, 19), (42, 19)], [(34, 21), (39, 21)])
+    eyes("eyes_half", [(34, 21), (35, 21), (36, 21), (39, 21), (40, 21), (41, 21)], [], [(33, 20), (34, 20), (35, 20), (36, 20), (39, 20), (40, 20), (41, 20), (42, 20)])
     eyes("eyes_closed", [], [], [(34, 20), (35, 20), (36, 20), (39, 20), (40, 20), (41, 20)])
-    eyes("eyes_wide", [(35, 21), (36, 21), (35, 22), (36, 22), (40, 21), (41, 21), (40, 22), (41, 22)], [(35, 20), (36, 20), (40, 20), (41, 20)],
+    eyes("eyes_wide", [(34, 20), (35, 20), (36, 20), (39, 20), (40, 20), (41, 20), (34, 21), (35, 21), (36, 21), (39, 21), (40, 21), (41, 21)], [],
          [(33, 18), (34, 18), (35, 18), (36, 18), (39, 18), (40, 18), (41, 18), (42, 18)], [])
     # she is never cross: where the others glare, her eyes crinkle in a smile
     for mood in ("eyes_angry", "eyes_happy"):
@@ -286,7 +294,7 @@ def build():
 
 # every name SpriteSet(prefix:) reads, plus the wings, the wand and the shadow
 NAMES = ["cape", "thighL", "shinL", "footL", "thighR", "shinR", "footR", "sash", "tunic", "cloak", "pauldronFar",
-         "pauldronNear", "armFarUpper", "armFarFore", "armNearUpper", "armNearFore", "head", "wings", "wand", "shadow",
+         "pauldronNear", "armFarUpper", "armFarFore", "armNearUpper", "armNearFore", "head", "hairBack", "wings", "wand", "shadow",
          "armNearUpperUp", "armNearForeUp"] \
     + ["eyes_" + k for k in ("open", "closed", "half", "happy", "angry", "wide")]
 VISIBLE = ["thighL", "thighR", "shinL", "shinR", "footL", "footR", "cape", "tunic", "cloak", "head", "armFarUpper", "armFarFore", "armNearUpper", "armNearFore", "wings", "wand",
@@ -316,7 +324,7 @@ if __name__ == "__main__":
         check()
         sys.exit()
     parts = build()
-    order = ["wings", "cape", "thighL", "shinL", "footL", "thighR", "shinR", "footR", "tunic", "armFarUpper", "wand", "armFarFore", "cloak", "head", "armNearUpper", "armNearFore"]
+    order = ["wings", "cape", "thighL", "shinL", "footL", "thighR", "shinR", "footR", "tunic", "armFarUpper", "wand", "armFarFore", "cloak", "hairBack", "head", "armNearUpper", "armNearFore"]
     canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     canvas.alpha_composite(parts["shadow"])
     for n in order:
