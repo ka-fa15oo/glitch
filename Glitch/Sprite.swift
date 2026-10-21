@@ -76,8 +76,12 @@ enum Sprite {
     private static let knightBounds = bounds(of: knightMask)
 
     /// The selected character's mask and the box round it (Wizzy has its own shape: staff, hood and cape).
-    static var hitMask: [Bool] { Mage.isSelected ? Mage.hitMask : Elf.isSelected ? Elf.hitMask : knightMask }
-    static var hitBounds: CGRect { Mage.isSelected ? Mage.hitBounds : Elf.isSelected ? Elf.hitBounds : knightBounds }
+    static var hitMask: [Bool] {
+        Mage.isSelected ? Mage.hitMask : Elf.isSelected ? Elf.hitMask : Phoenix.isSelected ? Phoenix.hitMask : knightMask
+    }
+    static var hitBounds: CGRect {
+        Mage.isSelected ? Mage.hitBounds : Elf.isSelected ? Elf.hitBounds : Phoenix.isSelected ? Phoenix.hitBounds : knightBounds
+    }
 
     /// Which grid pixels these images cover, each moved by its offset in art pixels (y grows down).
     static func coverage(_ images: [(CGImage, CGPoint)]) -> [Bool] {

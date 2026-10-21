@@ -16,6 +16,8 @@ struct RobotView: View {
     var brain: Brain?
     var fixedTime: Double?
     var fixedPose = Brain.Pose()
+    /// Settings preview: draw this character instead of the applied one.
+    var character: String?
 
     var body: some View {
         if let fixedTime {
@@ -50,20 +52,29 @@ struct RobotView: View {
                     let shifted = rng.next() % 100 < UInt64(35 * pose.glitch + 10)
                     let offset = shifted ? Double(Int(rng.next() % 9) - 4) * pose.glitch : 0
                     ctx.translateBy(x: offset * unit, y: 0)
-                    Self.drawCharacter(&ctx, unit: unit, size: sprite, t: t, pose: pose)
+                    Self.drawCharacter(&ctx, unit: unit, size: sprite, t: t, pose: pose, character: character)
                 }
                 var ghost = root
                 ghost.opacity = 0.28 * pose.glitch
                 ghost.translateBy(x: 2 * unit, y: 0)
-                Self.drawCharacter(&ghost, unit: unit, size: sprite, t: t, pose: pose)
+                Self.drawCharacter(&ghost, unit: unit, size: sprite, t: t, pose: pose, character: character)
             } else {
                 var ctx = root
-                Self.drawCharacter(&ctx, unit: unit, size: sprite, t: t, pose: pose)
+                Self.drawCharacter(&ctx, unit: unit, size: sprite, t: t, pose: pose, character: character)
             }
         }
         .frame(width: Self.canvasSize.width, height: Self.canvasSize.height)
         .overlay(alignment: .topLeading) {
-            if pose.showQuit {
+            if pose.showQuit, Phoenix.isSelected {
+                // the phoenix's own close button: the sun, in its gold
+                Text("☀\u{FE0E}")   // text style, not the emoji
+                    .font(.system(size: 18, weight: .bold, design: .serif))
+                    .foregroundStyle(Color(red: 1, green: 0.72, blue: 0.2))
+                    .shadow(color: Color(red: 0.25, green: 0.03, blue: 0.0), radius: 0, x: 1, y: 1)
+                    .frame(width: Self.quitRect.width, height: Self.quitRect.height)
+                    .offset(x: Self.quitRect.minX, y: Self.quitRect.minY)
+                    .allowsHitTesting(false)
+            } else if pose.showQuit {
                 // the grave-cross is the knight's; Wizzy shows a crescent moon in his staff star's gold, Faelis a green blossom
                 let mage = Mage.isSelected, elf = Elf.isSelected
                 Text(mage ? "☾" : elf ? "✿" : "†")
@@ -251,10 +262,12 @@ struct RobotView: View {
     }
 
     private static func drawCharacter(
-        _ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose
+        _ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose, character: String?
     ) {
-        if Mage.isSelected { return Mage.draw(&outer, unit: unit, size: size, t: t, pose: pose) }
-        if Elf.isSelected { return Elf.draw(&outer, unit: unit, size: size, t: t, pose: pose) }
+        let id = character ?? Prefs.d.string(forKey: Prefs.character)
+        if id == Mage.id { return Mage.draw(&outer, unit: unit, size: size, t: t, pose: pose) }
+        if id == Elf.id { return Elf.draw(&outer, unit: unit, size: size, t: t, pose: pose) }
+        if id == Phoenix.id { return Phoenix.draw(&outer, unit: unit, size: size, t: t, pose: pose) }
         if pose.cocoonAge >= 0, pose.cocoonHold {
             // goodbye: a blood storm whirls round the kneeling knight and takes it away
             BloodStorm.draw(&outer, unit: unit, age: pose.cocoonAge, t: t, side: .behind)

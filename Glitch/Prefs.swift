@@ -57,12 +57,12 @@ enum SoundGroup: String, CaseIterable {
 
     init(_ effect: SoundEffect) {
         switch effect {
-        case .wake, .farewell, .sad: self = .arrival
-        case .angry, .happy, .surprised: self = .reactions
+        case .wake, .farewell, .sad, .dragon: self = .arrival
+        case .angry, .happy, .surprised, .shriek: self = .reactions
         case .tick, .thud: self = .movement
         case .glitch: self = .glitch
         case .swish, .clang, .scrape: self = .sword
-        case .chime, .nudge, .rune, .orb, .fizzle, .starGlide, .hole, .constellation, .dustOut, .dustIn, .shootingStar, .petals, .call, .wilt:
+        case .chime, .nudge, .rune, .orb, .fizzle, .starGlide, .hole, .constellation, .dustOut, .dustIn, .shootingStar, .petals, .call, .wilt, .ignite, .whoosh, .smother, .roar, .crackle, .liftoff:
             self = .spells
         }
     }
@@ -82,6 +82,7 @@ struct CharacterInfo: Identifiable {
         CharacterInfo(id: Mage.id, name: "Wizzy", theme: "Cosmic mage", available: true),
         CharacterInfo(id: Elf.id, name: "Faelis", theme: "Fairy elf queen", available: true),
         CharacterInfo(id: "slot4", name: "Character 4", theme: "Coming soon", available: false),
+        CharacterInfo(id: Phoenix.id, name: "Phoenix", theme: "Crimson phoenix", available: true),
     ]
 }
 
