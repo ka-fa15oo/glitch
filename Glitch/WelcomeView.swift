@@ -26,7 +26,7 @@ struct WelcomeView: View {
             Form {
                 Section("Choose your companion") {
                     HStack(spacing: 12) {
-                        ForEach(CharacterInfo.all.filter(\.available)) { info in
+                        ForEach(CharacterInfo.all) { info in
                             CharacterCard(info: info, selected: (picked ?? character) == info.id) { picked = info.id }
                         }
                     }

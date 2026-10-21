@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The crimson phoenix (Character 5). It shares the brain with Wizzy and Faelis (a caster: no sword, its own arrival,
+/// The crimson phoenix. It shares the brain with Wizzy and Faelis (a caster: no sword, its own arrival,
 /// goodbye and sentinel moves) but flies where the others walk: it hangs in the air beating its wings, sweeps over the
 /// screen gliding on them, and now and then perches at the bottom. It draws itself from nine 3/4-view frames cut out of
 /// a Canva AI pose sheet (Tools/make_phoenix.py) and every fire effect as art-pixel particles inside its own window.

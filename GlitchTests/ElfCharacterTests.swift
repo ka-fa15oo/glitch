@@ -24,8 +24,8 @@ struct ElfCharacterTests {
 
     @Test func faelisIsOnThePicker() {
         let ids = CharacterInfo.all.map(\.id)
-        #expect(CharacterInfo.all.contains { $0.id == Elf.id && $0.name == "Faelis" && $0.available })
-        #expect(ids.count == 5)
+        #expect(CharacterInfo.all.contains { $0.id == Elf.id && $0.name == "Faelis" })
+        #expect(ids.count == 4)
         #expect(Set(ids).count == ids.count)
     }
 

@@ -74,12 +74,10 @@ private struct CustomizeTab: View {
                                 }
                                 Spacer()
                                 if (picked ?? character) == info.id { Image(systemName: "checkmark") }
-                                if !info.available { Image(systemName: "lock") }
                             }
                             .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
-                        .disabled(!info.available)
                     }
                 }
                 Section("Appearance") {

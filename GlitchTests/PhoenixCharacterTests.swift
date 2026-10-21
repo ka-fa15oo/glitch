@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-/// The phoenix (Character 5) is a caster like Wizzy and Faelis: no sword moves or sounds, its own fire reactions.
+/// The phoenix is a caster like Wizzy and Faelis: no sword moves or sounds, its own fire reactions.
 /// Serialized: the selected character is a global preference.
 @MainActor
 @Suite(.serialized)
