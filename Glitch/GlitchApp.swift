@@ -589,7 +589,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "misfire": pose.misfire = e; if e < 0.5 { pose.eyes = .wide }
                 case "call": pose.orb = e; pose.eyes = .happy; pose.bodyDY = -4
                 // the phoenix (run with `-character phoenix`): "rebirth:1.5", "ash:1.8", "quake:0.3", "carry:1", "pcast:0.2"
-                case "rebirth": pose.rebirth = e; pose.aloft = 1; pose.redSparks = 0; pose.goldSparks = 0
+                case "rebirth": pose.rebirth = e; pose.aloft = 0; pose.redSparks = 0; pose.goldSparks = 0
                 case "ash": pose.ash = e
                 case "quake": pose.quake = e
                 case "carry": pose.carried = true; pose.carriedAmount = e; pose.fling = 0.8; pose.hang = 0.1
@@ -621,7 +621,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ? AnyView(MageCosmos.HoleView(center: CGPoint(x: 350, y: 250), fixedAge: Double(mood.dropFirst(5)) ?? 1.5)
                 .frame(width: 700, height: 500).background(Color(red: 0.09, green: 0.08, blue: 0.14)))
             : mood.hasPrefix("breath:")
-            ? AnyView(Phoenix.FireBreath(start: CGPoint(x: 560, y: 150), dir: -1, unit: 2, length: Phoenix.breathLength, dense: true,
+            ? AnyView(Phoenix.FireBreath(start: CGPoint(x: 560, y: 150), dir: -1, unit: 2, length: Phoenix.exitBreathLength, dense: true,
                                          fixedAge: Double(mood.dropFirst(7)) ?? 1)
                 .frame(width: 600, height: 300).background(Color(red: 0.11, green: 0.11, blue: 0.13)))
             : mood.hasPrefix("streak")

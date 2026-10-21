@@ -278,7 +278,7 @@ final class Brain {
     private var quitUntil = 0.0
     private var appearStart: Double?
     private struct Glide { var start: Double }       // Wizzy's arrival: a rain of stars that gathers into it
-    private struct Landing { var impact: Double?; var vy = 0.0; var x: Double; var glide: Glide?; var chimed = false; var from: CGPoint? }
+    private struct Landing { var impact: Double?; var vy = 0.0; var x: Double; var glide: Glide?; var chimed = false; var cried = false }
     private struct Hole { var start: Double; var from: CGPoint; var target: CGPoint }   // Wizzy's goodbye into a black hole
     private var hole: Hole?
     var sentinelHold = SentinelHold.none      // set by the sentinel (Brain+Sentinel API below)
@@ -437,17 +437,15 @@ final class Brain {
         return true
     }
 
-    /// The phoenix swoops in from high up one side onto its spot, then breathes a torrent of fire (stepLanding).
+    /// The phoenix rises from its ashes on its spot: the ash glows, a column of flame bursts out of it and the bird
+    /// comes up out of the fire (drawn by Phoenix; stepLanding plays the flames and its cry).
     private func beginRebirth(bounds: CGRect, at now: Double) -> Bool {
         let tx = bounds.minX + bounds.width * .random(in: 1.0 / 3 ... 2.0 / 3)
-        let fromRight = Bool.random()
-        let from = CGPoint(x: fromRight ? bounds.maxX + 260 : bounds.minX - 260, y: groundY() + bounds.height * 0.75)
-        setWindowOrigin(from)
-        facingRight = !fromRight
-        landing = Landing(x: tx, glide: Glide(start: now), from: from)
+        setWindowOrigin(CGPoint(x: tx, y: groundY()))
+        landing = Landing(x: tx, glide: Glide(start: now))
         action = nil
         drop = .none
-        onSound?(.liftoff)
+        onSound?(.crackle)
         return true
     }
 
@@ -486,18 +484,12 @@ final class Brain {
         if let g = l.glide {
             let e = now - g.start
             let elf = Elf.isSelected, phoenix = Phoenix.isSelected
-            if phoenix, let from = l.from {   // swooping down onto its spot, easing in as it arrives
-                let k = 1 - pow(1 - min(1, e / Phoenix.swoopLength), 3)
-                setWindowOrigin(CGPoint(x: from.x + (l.x - from.x) * k, y: from.y + (groundY() - from.y) * k))
-            }
-            let shaped = phoenix ? Phoenix.breathAt : elf ? ElfMeadow.riseAt + 0.3 : MageCosmos.materializeAt + 0.9
-            if e >= shaped, !l.chimed {   // it has taken shape (the phoenix: it pours out its torrent of fire as it swoops in)
+            let shaped = phoenix ? Phoenix.riseAt : elf ? ElfMeadow.riseAt + 0.3 : MageCosmos.materializeAt + 0.9
+            if e >= shaped, !l.chimed {   // it has taken shape (the phoenix: the flame bursts out of the ash)
                 l.chimed = true
-                onSound?(phoenix ? .roar : .chime)
-                if phoenix {
-                    Phoenix.breathe(windowOrigin: windowOrigin(), live: windowOrigin, facingRight: facingRight, length: Phoenix.breathLength, dense: true)
-                }
+                onSound?(phoenix ? .ignite : .chime)
             }
+            if phoenix, e >= Phoenix.wingsAt, !l.cried { l.cried = true; onSound?(.shriek) }   // its wings fly open
             if e > (phoenix ? Phoenix.arrivalLength : elf ? ElfMeadow.arrivalLength - 1.4 : MageCosmos.rainLength - 0.3) {
                 landing = nil; nextAuto = now + .random(in: 6 ... 12); return
             }
@@ -555,8 +547,8 @@ final class Brain {
             return
         }
         if let g = l.glide, Phoenix.isSelected {
-            pose.rebirth = now - g.start   // swoops in, breathes fire, settles (drawn by Phoenix)
-            pose.aloft = 1
+            pose.rebirth = now - g.start   // rises from its ashes on the ground (drawn by Phoenix)
+            pose.aloft = 0
             return
         }
         if let g = l.glide { applyStarGlide(g, now: now, to: &pose); return }
