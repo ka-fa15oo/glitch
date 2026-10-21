@@ -106,7 +106,6 @@ final class Brain {
         // the cape streams the other way from the body's lunge and ripples with it (the same cloth motion as being dragged)
         let velocity = (st.dx - flourishState(e: e - 0.05).dx) / 0.05
         pose.fling = max(-1, min(1, velocity / 30))
-        if e >= 1.0, e < 1.6 { pose.waveAge = e - 1.0 }                    // the slash wave leaves the blade
         if e >= 1.1, e < 2.0 { pose.scrapeAge = e - 1.1 }                  // sparks where the point lands
         if e >= 1.1 { pose.shakeX = sin(e * 90) * 1.2 * exp(-(e - 1.1) * 12) }
     }
@@ -223,12 +222,10 @@ final class Brain {
         var slip = CGPoint.zero // the sword slides through the hands by this much (art px), hands stay put
         var slipRot = 0.0       // and turns by this much (radians)
         var flourishAge = -1.0  // seconds into the click flourish (drives the sword's afterimages); < 0 = none
-        var waveAge = -1.0      // seconds since the slash wave left the blade; < 0 = none
         var scrapeAge = -1.0    // seconds since the sword point began to scrape the ground; < 0 = none
         var sparkFlight = -1.0  // 0...1 the last gold spark flying from the sword point to the shoulder; < 0 = none
         var redSparks = 0       // shoulder sparks: waiting for the user
         var goldSparks = 0      // shoulder sparks: finished sessions
-        var splashAge = -1.0    // seconds since the landing splash began; < 0 = none
         var vortex = 0.0        // 0...1 how far Wizzy has been pulled into the black hole (it shrinks and spins)
         var wind = 0.0          // 0...1 gale blowing the cape to one side (arrival and goodbye)
         var squash = 0.0        // 0...1 impact squash
@@ -473,6 +470,7 @@ final class Brain {
                 setWindowOrigin(CGPoint(x: l.x, y: groundY()))
                 l.impact = now
                 onSound?(.thud)
+                BloodRise.launchSplash(windowOrigin: windowOrigin(), facingRight: facingRight)
             } else {
                 setWindowOrigin(CGPoint(x: l.x, y: y))
             }
@@ -528,7 +526,6 @@ final class Brain {
         let hit = max(0, 1 - e / 0.35)
         pose.squash = 0.7 * hit
         pose.shakeX = sin(e * 80) * 0.9 * hit
-        pose.splashAge = e
     }
 
     /// The user is carrying the window. `mouseX` is in screen points.
@@ -578,7 +575,14 @@ final class Brain {
             Elf.scatterFlowers(windowOrigin: windowOrigin(), facingRight: facingRight)
             return
         }
-        if case .none = drop { start(.flourish, at: now, silent: true) }
+        if case .none = drop {
+            start(.flourish, at: now, silent: true)
+            // the slash wave leaves the blade at the end of the cut
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                guard let self else { return }
+                RobotView.launchSlashWave(windowOrigin: self.windowOrigin(), facingRight: self.facingRight)
+            }
+        }
     }
 
     // MARK: - per frame
