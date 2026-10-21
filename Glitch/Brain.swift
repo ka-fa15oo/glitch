@@ -361,8 +361,8 @@ final class Brain {
     private func sound(for kind: Action) -> SoundEffect? {
         // Faelis arrives silently (her chime rings as she rises) and leaves with a chime as she casts
         if Elf.isSelected, kind == .wake || kind == .farewell { return kind == .farewell ? .chime : nil }
-        // the phoenix's arrival sounds come with the ash and the flames; it leaves catching fire
-        if Phoenix.isSelected, kind == .wake || kind == .farewell { return kind == .farewell ? .liftoff : nil }
+        // the phoenix's arrival sounds come with the ash and the flames; it roars the moment it takes off
+        if Phoenix.isSelected, kind == .wake || kind == .farewell { return kind == .farewell ? .dragon : nil }
         return switch kind {
         case .wake: .wake
         case .farewell: .farewell
@@ -768,7 +768,6 @@ final class Brain {
             pose.ash = now - a.start
             if !exitBreathed, pose.ash >= Phoenix.exitBreathAt {
                 exitBreathed = true
-                onSound?(.dragon)
                 Phoenix.breathe(windowOrigin: windowOrigin(), live: windowOrigin, facingRight: facingRight, length: Phoenix.exitBreathLength, dense: true)
             }
         }
