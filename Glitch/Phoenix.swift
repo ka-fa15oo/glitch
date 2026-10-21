@@ -26,14 +26,9 @@ enum Phoenix {
     /// Arrival (`pose.rebirth` = seconds in): it swoops down onto its spot over `swoopLength` s, pouring a torrent of
     /// fire out ahead of it from `breathAt` for `breathLength` s; the brain lets go at `arrivalLength`.
     static let swoopLength = 1.6, breathAt = 0.1, breathLength = 1.6, arrivalLength = 2.3
-    /// Goodbye (`pose.ash` = seconds in): it rears up with its wings spread for `rearLength` s, gives two huge, slow
-    /// strokes of `powerBeat` s each, and at `launchAt` beats its way straight up off the screen.
-    static let rearLength = 0.45, powerBeat = 0.5, farewellLength = 2.3
-    static let launchAt = rearLength + 2 * powerBeat
-    /// When each power stroke's wings come down (frame 3 of the beat), and the launch stroke: Brain sounds a gust on each.
-    static let strokes = [rearLength + powerBeat / 3, rearLength + powerBeat * 4 / 3, launchAt]
-    /// Height climbed (screen points) `t` s after the launch; Brain moves the window by it.
-    static func climb(_ t: Double) -> Double { 400 * t + 2400 * t * t }
+    /// Goodbye (`pose.ash` = seconds in): it flies off the screen in `exitLength` s, blazing white-gold, and from
+    /// `exitBreathAt` roars like a dragon and pours a torrent of fire out ahead of it for `exitBreathLength` s.
+    static let exitLength = 3.2, exitBreathAt = 0.35, exitBreathLength = 1.8
     /// A click: it breathes a short gout of fire.
     static let clickBreath = 0.9
     /// Idle life: every `flareEvery` s (wall clock) it blazes up for `flareLength` s.
@@ -48,11 +43,6 @@ enum Phoenix {
     private static func frame(t: Double, busy: Double, pose: Brain.Pose) -> CGImage {
         func beat(_ step: Double) -> CGImage { flaps[Int(t / step) % flaps.count] }
         if busy > 0.1 { return beat(frameTime(busy: busy)) }
-        if pose.ash >= 0 {                                      // rears up, two huge strokes, then beats hard up and away
-            if pose.ash < rearLength { return hover }
-            if pose.ash < launchAt { return flaps[Int((pose.ash - rearLength) / (powerBeat / 6)) % flaps.count] }
-            return flaps[Int((pose.ash - launchAt) / 0.05) % flaps.count]
-        }
         if pose.rebirth >= 0 {                                  // swoops in beating hard, rears up to breathe fire, settles
             return pose.rebirth < swoopLength ? beat(0.06) : pose.rebirth < breathAt + breathLength ? hover : perch
         }
@@ -77,7 +67,11 @@ enum Phoenix {
         case .angry, .surprised: .shriek
         case .sad: .smother
         case .happy, .thud, .tick, .glitch: .whoosh
-        case .wake, .farewell: .ignite
+        case .wake, .farewell, .chime: .ignite
+        case .nudge: .crackle
+        case .rune: .roar
+        case .orb: .whoosh
+        case .fizzle: .smother
         default: effect
         }
     }
@@ -106,6 +100,7 @@ enum Phoenix {
     }
 
     private static func clamp(_ v: Double) -> Double { max(0, min(1, v)) }
+    private static func ease(_ v: Double) -> Double { let k = clamp(v); return k * k * (3 - 2 * k) }
 
     /// Square art pixels, snapped to the grid like the sprite.
     private struct Pixels {
@@ -124,9 +119,7 @@ enum Phoenix {
 
     static func draw(_ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose) {
         let busy = max(pose.carriedAmount, pose.fallAmount)
-        // goodbye: each power stroke drives the body up and lets it sink back
-        let heave = pose.ash >= rearLength && pose.ash < launchAt ? 4 * sin(2 * .pi * (pose.ash - rearLength) / powerBeat) : 0
-        let bx = pose.bodyDX + pose.shakeX, by = pose.bodyDY - heave
+        let bx = pose.bodyDX + pose.shakeX, by = pose.bodyDY
         let body = Pixels(ctx: outer, unit: unit, dx: bx, dy: by)      // follows the bird
         let floor = Pixels(ctx: outer, unit: unit, dx: bx, dy: 0)      // stays on the ground
         let flying = pose.aloft > 0.5 && !pose.hovering
@@ -138,9 +131,8 @@ enum Phoenix {
         // behind the bird
         if pose.rune >= 0 { fireWall(floor, t: t, age: pose.rune, nudge: pose.nudge, front: false) }
         if pose.orb >= 0 { beacon(head, t: t, age: pose.orb) }
-        if pose.ash >= launchAt { sparkTrail(body, t: t, age: pose.ash - launchAt) }
         // each downstroke pushes a faint breath of wind off the wings
-        if sprite !== perch, sprite !== glide, sprite !== hover, pose.ash < 0 {
+        if sprite !== perch, sprite !== glide, sprite !== hover {
             wind(body, t: t, step: busy > 0.1 ? frameTime(busy: busy) : pose.rebirth >= 0 ? 0.06 : flying ? frameTime(busy: 0) : hoverFrameTime)
         }
 
@@ -181,7 +173,7 @@ enum Phoenix {
         if pose.feast >= 0 { glow = max(glow, 0.5 * (1 - clamp(pose.feast / 1.2))) }
         if pose.misfire > 0.75 { glow = max(glow, 0.45 * sin(.pi * clamp((pose.misfire - 0.75) / 0.6))) }
         if pose.rebirth >= breathAt { glow = max(glow, 0.6 * sin(.pi * clamp((pose.rebirth - breathAt) / breathLength))) }
-        if pose.ash >= 0 { glow = max(glow, 0.45 * clamp(pose.ash / launchAt)) }   // blazing up as it gathers itself
+        if pose.ash >= 0 { glow = max(glow, (0.55 + 0.15 * sin(t * 13)) * ease(pose.ash / 0.4)) }   // leaving ablaze, flickering white-hot
         if glow > 0.02 {
             var g = ctx
             g.blendMode = .plusLighter
@@ -191,7 +183,13 @@ enum Phoenix {
 
         // in front of the bird
         if pose.rune >= 0 { fireWall(floor, t: t, age: pose.rune, nudge: pose.nudge, front: true) }
-        if pose.reveal > 0.5, pose.ash < 0 { embers(body, t: t, busy: max(busy, flying ? 0.6 : 0), fling: pose.fling, misfire: pose.misfire) }
+        if pose.reveal > 0.5 {
+            let heat = pose.ash >= 0 ? 1 : max(busy, flying ? 0.6 : 0)
+            if let origin = pose.origin {
+                screenEmbers(t: t, origin: origin, unit: unit, facingRight: pose.facingRight,
+                             body: CGPoint(x: bx, y: by), busy: heat, misfire: pose.misfire)
+            } else { embers(body, t: t, busy: heat, fling: pose.fling, misfire: pose.misfire) }
+        }
         if let f = flare { burst(body, age: f, length: flareLength, count: 18, colour: nil) }
         if pose.orb >= 0 { glowingEyes(head, t: t) }
         if pose.feast >= 0 {
@@ -199,14 +197,13 @@ enum Phoenix {
             driftingFeather(body, t: t, age: pose.feast, slot: pose.goldSparks)
         }
         if pose.misfire >= 0 { smokePuffs(body, age: pose.misfire) }
-        if pose.ash >= 0, pose.ash < launchAt { gather(body, age: pose.ash) }
-        if pose.ash >= 0, let last = strokes.last(where: { $0 <= pose.ash }) { gust(floor, age: pose.ash - last) }
         counters(floor, t: t, gold: pose.goldSparks, waiting: pose.redSparks)
     }
 
     // MARK: - effects
 
     /// Idle: a few embers rising off the plumage. Carried or falling: a trail of them streaming behind.
+    /// Only for previews, which have no window on the screen; the pet itself uses `screenEmbers`.
     private static func embers(_ px: Pixels, t: Double, busy: Double, fling: Double, misfire: Double) {
         let count = busy > 0.1 ? 32 : 10
         let dim = misfire >= 0 ? clamp((misfire - 0.75) / 0.5) : 1
@@ -217,6 +214,89 @@ enum Phoenix {
             let x = busy > 0.1 ? x0 - fling * a * 30 : x0 + sin(a * 7 + Double(i)) * 2.5
             let y = busy > 0.1 ? y0 + a * 26 : y0 - a * 38
             px.dot(x, y, fire(a), (1 - a * a) * dim, size: busy > 0.1 && i % 2 == 0 ? 2 : 1)
+        }
+    }
+
+    /// An ember loose on the screen: art pixels, y up, so it doesn't care where the window goes.
+    private struct Ember { var x, y, vx, vy, age, life: Double; var big: Bool }
+    nonisolated(unsafe) private static var loose: [Ember] = []
+    nonisolated(unsafe) private static var lastStep = 0.0, lastOrigin: CGPoint?, owed = 0.0, dim = 1.0
+    /// The see-through window over the screens the loose embers are drawn in, so the pet window never clips them.
+    @MainActor private static var field: NSWindow?
+
+    /// Embers that live on the screen, not in the window. Each is born on the plumage carrying part of the bird's own
+    /// speed, then air drag slows it and the heat lifts it, so a dragged or flying bird leaves a trail of them behind it
+    /// and they drift on where it let them go instead of being dragged along. `EmberField` draws them.
+    private static func screenEmbers(t: Double, origin: CGPoint, unit: CGFloat, facingRight: Bool,
+                                     body: CGPoint, busy: Double, misfire: Double) {
+        let o = CGPoint(x: origin.x / unit, y: origin.y / unit)   // window origin in art pixels
+        // art pixel on the bird <-> the screen (see RobotView.screenPoint)
+        func world(_ x: Double, _ y: Double) -> CGPoint {
+            let px = Double(padLeft) + x
+            return CGPoint(x: o.x + (facingRight ? canvas.width - px : px), y: o.y + canvas.height - (Double(padTop) + y))
+        }
+        let dt = t - lastStep
+        if dt > 0 {   // the ghost of a glitch frame draws again at the same moment: step once
+            let step = min(dt, 0.05)
+            lastStep = t
+            var bird = CGPoint.zero   // the bird's speed, art px/s; a jump (a swoop starting off-screen) counts as none
+            if let last = lastOrigin, hypot(o.x - last.x, o.y - last.y) < 120 { bird = CGPoint(x: (o.x - last.x) / step, y: (o.y - last.y) / step) }
+            lastOrigin = o
+            let drag = exp(-2.2 * step)
+            for i in loose.indices {
+                loose[i].vx *= drag; loose[i].vy = loose[i].vy * drag + 22 * step   // the heat lifts it
+                loose[i].vx += Double.random(in: -1 ... 1) * 30 * step                // and the air jostles it
+                loose[i].x += loose[i].vx * step; loose[i].y += loose[i].vy * step
+                loose[i].age += step
+            }
+            loose.removeAll { $0.age >= $0.life }
+            owed += step * (busy > 0.1 ? 14 + 26 * busy : 4)
+            while owed >= 1, loose.count < 240 {
+                owed -= 1
+                let p = world(body.x + 4 + .random(in: 0 ... 62), body.y + 30 + .random(in: 0 ... 55))
+                loose.append(Ember(x: p.x, y: p.y, vx: 0.35 * bird.x + .random(in: -6 ... 6), vy: 0.35 * bird.y + .random(in: 4 ... 14),
+                                   age: 0, life: busy > 0.1 ? .random(in: 0.7 ... 1.5) : .random(in: 1.8 ... 3.4), big: busy > 0.1 && Bool.random()))
+            }
+            owed = min(owed, 1)
+        }
+        dim = misfire >= 0 ? clamp((misfire - 0.75) / 0.5) : 1
+        DispatchQueue.main.async { openField() }
+    }
+
+    /// One click-through window spanning every screen, opened the first time the phoenix sheds an ember.
+    /// shortcut: with "Displays have separate Spaces" on, macOS shows it on one display only; per-screen windows if that matters.
+    @MainActor private static func openField() {
+        guard field == nil else { return }
+        let frame = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }
+        let window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: EmberField(frame: frame))
+        window.orderFrontRegardless()
+        field = window
+    }
+
+    /// Draws the loose embers where they are on the screen.
+    private struct EmberField: View {
+        let frame: CGRect
+        var body: some View {
+            TimelineView(.animation) { tl in
+                Canvas { c, _ in
+                    // the phoenix hasn't been drawn for a while (hidden, or another character): close, don't redraw an empty screen
+                    if tl.date.timeIntervalSinceReferenceDate - lastStep > 5 { DispatchQueue.main.async { field?.close(); field = nil } }
+                    let unit = RobotView.scale
+                    let px = Pixels(ctx: c, unit: unit, dx: -frame.minX / unit, dy: frame.maxY / unit)   // screen art px, y up -> view
+                    for e in loose {
+                        let a = e.age / e.life
+                        px.dot(e.x, -e.y, fire(a), (1 - a * a) * dim, size: e.big ? 2 : 1)
+                    }
+                }
+            }
         }
     }
 
@@ -281,7 +361,7 @@ enum Phoenix {
     }
 
     /// Where the n-th finished session's golden feather rests: a column beside it, filling up from the ground.
-    private static func slot(_ n: Int) -> CGPoint { CGPoint(x: 86 - Double(n / 8) * 4, y: ground - 6 - Double(n % 8) * 7) }
+    private static func slot(_ n: Int) -> CGPoint { CGPoint(x: 74 - Double(n / 8) * 4, y: ground - 6 - Double(n % 8) * 7) }
 
     /// A session finished: a golden feather drifts down from above its head into the column.
     private static func driftingFeather(_ px: Pixels, t: Double, age: Double, slot n: Int) {
@@ -300,7 +380,7 @@ enum Phoenix {
             feather(px, p.x + (sin(t * 1.4 + Double(n)) * 0.6).rounded(), p.y)
         }
         for n in 0 ..< min(waiting, 16) {
-            let x = -8 + Double(n / 8) * 4, y = ground - 4 - Double(n % 8) * 6
+            let x = 0 - Double(n / 8) * 4, y = ground - 4 - Double(n % 8) * 6
             let flick = sin(t * 11 + Double(n) * 2) > 0
             px.dot(x, y, red, size: 2); px.dot(x, y - 1, orange); px.dot(x + 1, y - (flick ? 2 : 1), yellow)
         }
@@ -330,44 +410,6 @@ enum Phoenix {
         }
     }
 
-    /// Goodbye, on the pad: sparks rushing in from all round as it gathers its power, faster as it nears the launch.
-    private static func gather(_ px: Pixels, age: Double) {
-        let k = clamp(age / launchAt)
-        for i in 0 ..< 40 {
-            let u = ((age * (1.2 + 1.8 * k) + hash(i, 43))).truncatingRemainder(dividingBy: 1)
-            let a = Double(i) / 40 * 2 * .pi
-            let r = 46 * (1 - u) + 4
-            px.dot(centre.x + cos(a) * r, centre.y + sin(a) * r * 0.85, i % 3 == 0 ? gold : fire(1 - u), k * u, size: u > 0.7 ? 2 : 1)
-        }
-    }
-
-    /// Goodbye, a power stroke: a hard gust of air driven down off the wings, kicking embers out along the ground.
-    private static func gust(_ px: Pixels, age: Double) {
-        guard age < 0.6 else { return }
-        let k = age / 0.6
-        for i in 0 ..< 36 {
-            let side = i % 2 == 0 ? 1.0 : -1.0
-            let x = centre.x + side * (6 + hash(i, 46) * 22 + k * (20 + hash(i, 47) * 30))
-            let y = centre.y + 8 + hash(i, 48) * 8 + k * (26 + hash(i, 49) * 18)
-            px.dot(x, y, .white, 0.4 * (1 - k), size: 2)
-            px.dot(x + side, y + 2, .white, 0.22 * (1 - k))
-        }
-        for i in 0 ..< 18 {   // embers blown flat along the ground
-            let side = i % 2 == 0 ? 1.0 : -1.0
-            px.dot(centre.x + side * (10 + k * (30 + hash(i, 57) * 40)), ground - hash(i, 58) * 4 - k * 6, fire(0.3 + k * 0.6), 1 - k)
-        }
-    }
-
-    /// Goodbye, climbing: sparks and embers shaken off its beating wings, falling away below it.
-    private static func sparkTrail(_ px: Pixels, t: Double, age: Double) {
-        for i in 0 ..< 46 {
-            let u = ((t * 2.5 + hash(i, 44))).truncatingRemainder(dividingBy: 1)
-            let x = centre.x - 26 + hash(i, 45) * 56 + sin(u * 6 + Double(i)) * 2
-            let y = centre.y + u * 60
-            px.dot(x, y, fire(0.1 + u * 0.8), (1 - u) * clamp(age / 0.05), size: i % 4 == 0 ? 2 : 1)
-        }
-    }
-
     // MARK: - fire past the window (screen overlays)
 
     /// Where its beak is in the airborne and wings-spread frames (sprite grid).
@@ -376,23 +418,22 @@ enum Phoenix {
     /// Breathes fire from its beak for `length` s; `dense` is the arrival's torrent, otherwise a click's gout.
     /// On the arrival the window is still swooping from `windowOrigin` to `to`: the flame leaves the beak wherever it is
     /// along that swoop, `offset` s into a `travel` s ease-out.
-    @MainActor static func breathe(windowOrigin: CGPoint, facingRight: Bool, length: Double, dense: Bool,
-                                   to: CGPoint? = nil, travel: Double = 0, offset: Double = 0) {
-        let end = to ?? windowOrigin
-        let shift = CGPoint(x: end.x - windowOrigin.x, y: windowOrigin.y - end.y)   // view coordinates: y down
-        overlay(at: beak, windowOrigin: end, facingRight: facingRight, for: length + FireBreath.life + 0.1) {
-            FireBreath(start: CGPoint(x: $0.x - shift.x, y: $0.y - shift.y), dir: facingRight ? 1 : -1, unit: RobotView.scale,
-                       length: length, dense: dense, shift: shift, travel: travel, offset: offset)
+    /// `live` reads the pet window's origin every frame: the flame leaves the beak wherever the bird is, swooping or dragged.
+    @MainActor static func breathe(windowOrigin: CGPoint, live: @escaping () -> CGPoint, facingRight: Bool, length: Double, dense: Bool) {
+        overlay(at: beak, windowOrigin: windowOrigin, facingRight: facingRight, for: length + FireBreath.life + 0.1) { start, beakNow in
+            FireBreath(start: start, dir: facingRight ? 1 : -1, unit: RobotView.scale, length: length, dense: dense,
+                       follow: { beakNow(live()) })
         }
     }
 
     /// A see-through, click-through window over the screen under sprite point `art`, for `duration` seconds; `make`
     /// gets that point in the overlay's view coordinates (y down).
     @MainActor private static func overlay<V: View>(at art: CGPoint, windowOrigin: CGPoint, facingRight: Bool,
-                                                    for duration: Double, _ make: (CGPoint) -> V) {
+                                                    for duration: Double, _ make: (CGPoint, @escaping (CGPoint) -> CGPoint) -> V) {
         let px = (CGFloat(padLeft) + art.x) * RobotView.scale, py = (CGFloat(padTop) + art.y) * RobotView.scale
-        let p = CGPoint(x: windowOrigin.x + (facingRight ? RobotView.canvasSize.width - px : px),
-                        y: windowOrigin.y + RobotView.canvasSize.height - py)
+        let at = { (o: CGPoint) in CGPoint(x: o.x + (facingRight ? RobotView.canvasSize.width - px : px),
+                                           y: o.y + RobotView.canvasSize.height - py) }
+        let p = at(windowOrigin)
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(p) }) ?? NSScreen.main else { return }
         let window = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
         window.isOpaque = false
@@ -402,7 +443,10 @@ enum Phoenix {
         window.level = .floating
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: make(CGPoint(x: p.x - screen.frame.minX, y: screen.frame.maxY - p.y)))
+        window.contentView = NSHostingView(rootView: make(CGPoint(x: p.x - screen.frame.minX, y: screen.frame.maxY - p.y), { o in
+            let q = at(o)
+            return CGPoint(x: q.x - screen.frame.minX, y: screen.frame.maxY - q.y)
+        }))
         window.orderFrontRegardless()
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) { window.close() }
     }
@@ -418,6 +462,10 @@ enum Phoenix {
         var shift = CGPoint.zero   // how far the beak moves (view points) over the swoop
         var travel = 0.0, offset = 0.0
         var fixedAge: Double?
+        /// The beak in view coordinates right now; set, each particle leaves from where the beak was when it was born.
+        var follow: (() -> CGPoint)?
+        private final class Track { var samples: [(t: Double, p: CGPoint)] = [] }
+        private let track = Track()
         private let began = Date.timeIntervalSinceReferenceDate
 
         var body: some View {
@@ -436,26 +484,29 @@ enum Phoenix {
             return CGPoint(x: shift.x * f / unit, y: shift.y * f / unit)
         }
 
+        /// Where the beak was `t` s into the breath, in art px (relative to `start` unless following).
+        private func origin(_ t: Double) -> CGPoint {
+            guard follow != nil else { return mouth(t) }
+            let s = track.samples.last(where: { $0.t <= t }) ?? track.samples.first
+            return CGPoint(x: (s?.p.x ?? start.x) / unit, y: (s?.p.y ?? start.y) / unit)
+        }
+
         private func canvas(age: Double) -> some View {
-            Canvas { c, _ in
-                let px = Pixels(ctx: c, unit: unit, dx: start.x / unit, dy: start.y / unit)
+            if let follow, track.samples.last.map({ $0.t < age }) ?? true { track.samples.append((age, follow())) }
+            return Canvas { c, _ in
+                let px = Pixels(ctx: c, unit: unit, dx: follow == nil ? start.x / unit : 0, dy: follow == nil ? start.y / unit : 0)
                 let rate = dense ? 1400.0 : 600.0, speed = dense ? 330.0 : 210.0
                 let count = Int(length * rate)
                 for i in 0 ..< count {
                     let te = Double(i) / rate, a = age - te
                     guard a >= 0, a < Self.life else { continue }
                     let k = a / Self.life
-                    let from = mouth(te)
+                    let from = origin(te)
                     let dist = speed * a * (1 - 0.4 * a) * (0.7 + 0.6 * hash(i, 50))
                     let spread = (hash(i, 51) - 0.5) * (0.22 + 0.95 * k) * dist
                     let x = from.x + dir * dist, y = from.y + 0.1 * dist + spread - 34 * a * a
                     let size = (dense ? 3 : 2) + (dense ? 8 : 5) * k
                     px.dot(x - size / 2, y - size / 2, fire(k * 0.95 + hash(i, 52) * 0.15), (1 - k * k) * 0.9, size: size.rounded())
-                }
-                // a white-hot core at the beak while it pours
-                if age < length {
-                    let m = mouth(age)
-                    for j in 0 ..< 10 { px.dot(m.x + dir * Double(j) * 2.5 - 1, m.y - 1, j < 4 ? .white : pale, 1, size: dense ? 3 : 2) }
                 }
             }
         }

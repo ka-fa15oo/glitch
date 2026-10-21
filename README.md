@@ -43,7 +43,7 @@ Glitch adds a tiny hook script to Claude Code's global settings (`~/.claude/sett
 - Drag him around; he reacts and falls back to the ground.
 - Steps out of the way of the text box you're typing in (needs the Accessibility permission).
 - Hides when a fullscreen app is in front.
-- Sounds are synthesized in code, and each group can be turned off.
+- Sounds are synthesized in code (the phoenix uses free recordings), and each group can be turned off.
 
 <p align="center"><img src="docs/images/customize.png" width="460" alt="Customize window"></p>
 
@@ -80,3 +80,7 @@ xcodebuild -scheme Glitch -destination 'platform=macOS' test
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+The phoenix's sounds in `Glitch/Sounds` are trimmed from free recordings:
+- CC0: "CC0 deep monster roar" by trazzz123, "Dragon Flap" by VishwaJai, "Fire Staff" by LEGIT Audio and "Fire Crackling" by AntumDeluge, all on [OpenGameArt](https://opengameart.org).
+- [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/): "[Screaming Hawk](https://commons.wikimedia.org/wiki/File:Screaming_Hawk.wav)" by PsychoBird, on Wikimedia Commons (trimmed).

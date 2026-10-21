@@ -53,7 +53,7 @@ private struct CustomizeTab: View {
     var body: some View {
         HStack(alignment: .top, spacing: 20) {
             // live preview drawn back at the default size so the window never resizes
-            RobotView()
+            RobotView(character: picked ?? character)
                 .hueRotation(.degrees(hue))
                 .scaleEffect(2 / scale)
                 .frame(width: 230, height: 255)

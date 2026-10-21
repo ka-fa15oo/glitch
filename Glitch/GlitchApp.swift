@@ -130,6 +130,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
     private var clickMonitor: Any?
     private var mouseDownAt: (time: Double, origin: CGPoint, mouse: CGPoint)?
+    private var pendingClick: DispatchWorkItem?
+    private var lastClickUp = -10.0
     private var hoverTimer: Timer?
     private var sentinel: SentinelController?
     private var textTimer: Timer?
@@ -177,8 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let f = screen.visibleFrame
             window.setFrameOrigin(NSPoint(x: f.midX - size.width / 2, y: f.midY - size.height / 2))
         }
-        window.orderFrontRegardless()
-        self.window = window
+        self.window = window   // shown after the arrival has started (see below), or it flashes idle at screen centre first
 
         // stay silent while the screen is locked, asleep or the knight is hidden
         brain.onSound = { [weak self] effect in
@@ -191,6 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return (NSEvent.mouseLocation, CGPoint(x: frame.midX, y: frame.midY))
         }
         brain.windowOrigin = { [weak self] in self?.window?.frame.origin ?? .zero }
+        brain.skyLimit = { NSScreen.screens.map(\.frame.maxY).max() ?? 0 }
         brain.setWindowOrigin = { [weak self] origin in self?.window?.setFrameOrigin(origin) }
         brain.walkBounds = { [weak self] in
             guard let window = self?.window, let screen = window.screen ?? NSScreen.main else { return .zero }
@@ -223,6 +225,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         RunLoop.main.add(timer, forMode: .common)
         brainTimer = timer
+        brain.update(at: CACurrentMediaTime())
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self, let window = self.window, !window.isVisible, self.fullscreenHits < 2 else { return }
+            window.orderFrontRegardless()
+        }
 
         let workspace = NSWorkspace.shared.notificationCenter
         workspace.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
@@ -322,10 +329,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else if let down = mouseDownAt {
                 let moved = hypot(mouse.x - down.mouse.x, mouse.y - down.mouse.y)
                 if moved < 3, now - down.time < 0.5 {
-                    if event.clickCount >= 2 {
+                    pendingClick?.cancel()
+                    // our own timing too: the first click on an inactive window can come in with clickCount 1 both times
+                    let double = event.clickCount >= 2 || now - lastClickUp < NSEvent.doubleClickInterval
+                    lastClickUp = double ? -10 : now
+                    if double {
                         brain.revealQuitButton()
-                    } else if !(sentinel?.handleClick() ?? false) {
-                        brain.clicked()
+                    } else {
+                        // wait out the double-click window, so a double click never fires the single-click effect too
+                        let click = DispatchWorkItem { [weak self] in
+                            guard let self, !(self.sentinel?.handleClick() ?? false) else { return }
+                            self.brain.clicked()
+                        }
+                        pendingClick = click
+                        DispatchQueue.main.asyncAfter(deadline: .now() + NSEvent.doubleClickInterval, execute: click)
                     }
                 }
             }
@@ -387,8 +404,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if hide, window.isVisible {
             window.orderOut(nil)
         } else if !hide, !window.isVisible {
+            wakeUp()   // first, so the arrival is already posed when the window appears
             window.orderFrontRegardless()
-            wakeUp()
         }
     }
 
@@ -406,6 +423,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Prefs.d.set(id, forKey: Prefs.character)
             lastWake = CACurrentMediaTime()
             brain.start(.wake)
+            brain.update(at: CACurrentMediaTime())   // pose the arrival now, or the new character flashes idle for a frame
             switchingCharacter = false
         }
     }
@@ -415,6 +433,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard now - lastWake > 20 else { return }
         lastWake = now
         brain.start(.wake)
+        brain.update(at: CACurrentMediaTime())
     }
 
     private static func fullscreenAppIsFrontmost() -> Bool {

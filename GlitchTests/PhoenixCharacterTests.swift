@@ -38,23 +38,25 @@ struct PhoenixCharacterTests {
         #expect(phoenix.current.cast >= 0)
         let sounds = heard()
         #expect(Set(sounds).isDisjoint(with: [.clang, .scrape, .swish]))
-        #expect(sounds.contains(.smother) && sounds.contains(.roar) && sounds.contains(.whoosh))
+        #expect(sounds.contains(.smother) && sounds.contains(.whoosh))
         Prefs.d.removeObject(forKey: Prefs.character)
     }
 
-    /// Goodbye: it heats up with its wings folded, then launches straight up off the screen.
-    @Test func goodbyeLaunchesLikeARocket() {
+    /// Goodbye: the arrival in reverse. It takes off, roars like a dragon and flies off the side of the screen it faces.
+    @Test func goodbyeFliesOffRoaring() {
         let (phoenix, heard) = brain()
         var origin = CGPoint(x: 500, y: 0)
         phoenix.windowOrigin = { origin }
         phoenix.setWindowOrigin = { origin = $0 }
-        #expect(phoenix.farewellLength == Phoenix.farewellLength)
+        phoenix.walkBounds = { CGRect(x: 0, y: 0, width: 1000, height: 700) }
+        phoenix.groundY = { 0 }
         phoenix.start(.farewell, at: 200)
-        run(phoenix, from: 200, seconds: Phoenix.launchAt - 0.1)
-        #expect(origin.y == 0)                          // still on the pad, heating up
-        run(phoenix, from: 200 + Phoenix.launchAt - 0.1, seconds: 0.8)
-        #expect(heard().contains(.blast))
-        #expect(origin.y > 1000 && origin.x == 500)     // gone straight up
+        #expect(abs(phoenix.farewellLength - (Phoenix.exitLength + 0.1)) < 0.001)
+        run(phoenix, from: 200, seconds: Phoenix.exitBreathAt + 0.1)
+        #expect(heard().contains(.dragon))
+        #expect(origin.y > 0)                                   // already off the ground
+        run(phoenix, from: 200 + Phoenix.exitBreathAt + 0.1, seconds: Phoenix.exitLength)
+        #expect(origin.x > 1000 || origin.x < 0)                // gone off the side
         Prefs.d.removeObject(forKey: Prefs.character)
     }
 

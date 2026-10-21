@@ -234,6 +234,7 @@ final class Brain {
         var squash = 0.0        // 0...1 impact squash
         var falling = false
         var fling = 0.0         // -1...1 how hard it is being dragged sideways (sprite space)
+        var origin: CGPoint?    // the pet window's origin on screen (nil in previews), so the phoenix's embers live on the screen
         var carried = false
         var showQuit = false    // double-click reveals a close button
         var cocoonAge = -1.0    // seconds since blood started swirling round the whole body; < 0 = none
@@ -267,6 +268,7 @@ final class Brain {
     var onSound: ((SoundEffect) -> Void)?
     var mouseTarget: () -> (mouse: CGPoint, center: CGPoint)? = { nil }
     var windowOrigin: () -> CGPoint = { .zero }
+    var skyLimit: () -> CGFloat = { 0 }   // top edge of the highest screen: a window above it is off every display
     var setWindowOrigin: (CGPoint) -> Void = { _ in }
     var walkBounds: () -> CGRect = { .zero }
     var groundY: () -> CGFloat = { 0 }
@@ -326,8 +328,7 @@ final class Brain {
     /// The phoenix flies instead of walking: a long curve over the screen from one perch to the next.
     private struct Flight { var start: Double; var length: Double; var from, c1, c2, to: CGPoint }
     private var flight: Flight?
-    private var launchPad: CGPoint?   // where the phoenix lifted off on its goodbye; nil = not yet
-    private var gusts = 0             // how many of its goodbye strokes have sounded
+    private var exitBreathed = false   // the phoenix's goodbye has roared and breathed its fire
     /// Which constellation showing (see Mage) already had its sound.
     private var heardConstellation = -1.0
     private var feastStart: Double?, misfireStart: Double?
@@ -364,7 +365,7 @@ final class Brain {
         // Faelis arrives silently (her chime rings as she rises) and leaves with a chime as she casts
         if Elf.isSelected, kind == .wake || kind == .farewell { return kind == .farewell ? .chime : nil }
         // the phoenix's arrival sounds come with the ash and the flames; it leaves catching fire
-        if Phoenix.isSelected, kind == .wake || kind == .farewell { return kind == .farewell ? .ignite : nil }
+        if Phoenix.isSelected, kind == .wake || kind == .farewell { return kind == .farewell ? .liftoff : nil }
         return switch kind {
         case .wake: .wake
         case .farewell: .farewell
@@ -384,7 +385,8 @@ final class Brain {
 
     func start(_ kind: Action, at now: Double = CACurrentMediaTime(), silent: Bool = false) {
         action = (kind, now)
-        if kind == .farewell { flight = nil; launchPad = nil; gusts = 0 }
+        if kind == .farewell { flight = nil; exitBreathed = false }
+        if kind == .farewell, Phoenix.isSelected { beginExit(at: now) }
         if kind == .farewell, Mage.isSelected { beginBlackHole(at: now) }
         if kind == .farewell, Elf.isSelected {
             let o = windowOrigin()
@@ -448,7 +450,7 @@ final class Brain {
         landing = Landing(x: tx, glide: Glide(start: now), from: from)
         action = nil
         drop = .none
-        onSound?(.whoosh)
+        onSound?(.liftoff)
         return true
     }
 
@@ -464,7 +466,7 @@ final class Brain {
     }
 
     /// How long the goodbye takes before the app quits.
-    var farewellLength: Double { Mage.isSelected ? 3.7 : Elf.isSelected ? ElfMeadow.farewellLength : Phoenix.isSelected ? Phoenix.farewellLength : 4.8 }
+    var farewellLength: Double { Mage.isSelected ? 3.7 : Elf.isSelected ? ElfMeadow.farewellLength : Phoenix.isSelected ? (flight?.length ?? 0) + 0.1 : 4.8 }
 
     /// Vorn is the one with the sword and the blood; Wizzy, Faelis and the phoenix have their own ways.
     private var isKnight: Bool { !Mage.isSelected && !Elf.isSelected && !Phoenix.isSelected }
@@ -496,8 +498,7 @@ final class Brain {
                 l.chimed = true
                 onSound?(phoenix ? .roar : .chime)
                 if phoenix {
-                    Phoenix.breathe(windowOrigin: windowOrigin(), facingRight: facingRight, length: Phoenix.breathLength, dense: true,
-                                    to: CGPoint(x: l.x, y: groundY()), travel: Phoenix.swoopLength, offset: e)
+                    Phoenix.breathe(windowOrigin: windowOrigin(), live: windowOrigin, facingRight: facingRight, length: Phoenix.breathLength, dense: true)
                 }
             }
             if e > (phoenix ? Phoenix.arrivalLength : elf ? ElfMeadow.arrivalLength - 1.4 : MageCosmos.rainLength - 0.3) {
@@ -630,8 +631,8 @@ final class Brain {
         if Phoenix.isSelected {
             guard castStart == nil else { return }
             castStart = now
-            onSound?(.roar)
-            Phoenix.breathe(windowOrigin: windowOrigin(), facingRight: facingRight, length: Phoenix.clickBreath, dense: false)
+            onSound?(.whoosh)   // a short, sharp gout; the long torrent is the arrival's
+            Phoenix.breathe(windowOrigin: windowOrigin(), live: windowOrigin, facingRight: facingRight, length: Phoenix.clickBreath, dense: false)
             return
         }
         if case .none = drop { start(.flourish, at: now, silent: true) }
@@ -747,7 +748,7 @@ final class Brain {
             applySentinel(now, to: &pose)
         }
         if !isKnight { applyCasterSentinel(now, carried: carried, to: &pose) }
-        if Phoenix.isSelected { applyPhoenix(now, carried: carried, dropping: dropping, to: &pose) }
+        if Phoenix.isSelected { applyPhoenix(now, carried: carried, dropping: dropping, to: &pose); pose.origin = windowOrigin() }
         if let a = appearStart {
             let appeared = now - a
             if appeared < 2.5 {
@@ -766,17 +767,13 @@ final class Brain {
             pose.eyes = .happy
             pose.headDY = 0; pose.headRot = 0                          // head up, no knightly bow
         }
-        // the phoenix rears up, gives two huge strokes of its wings, and beats its way straight up off the screen
+        // the phoenix leaves ablaze; just off the ground it roars like a dragon and pours fire out ahead of it
         if let a = action, a.kind == .farewell, Phoenix.isSelected {
-            let e = now - a.start
-            pose.ash = e
-            if gusts < Phoenix.strokes.count, e >= Phoenix.strokes[gusts] {   // the air thumps on every stroke
-                gusts += 1
-                onSound?(gusts == Phoenix.strokes.count ? .blast : .whoosh)
-            }
-            if e >= Phoenix.launchAt {
-                if launchPad == nil { launchPad = windowOrigin() }
-                if let pad = launchPad { setWindowOrigin(CGPoint(x: pad.x, y: pad.y + Phoenix.climb(e - Phoenix.launchAt))) }
+            pose.ash = now - a.start
+            if !exitBreathed, pose.ash >= Phoenix.exitBreathAt {
+                exitBreathed = true
+                onSound?(.dragon)
+                Phoenix.breathe(windowOrigin: windowOrigin(), live: windowOrigin, facingRight: facingRight, length: Phoenix.exitBreathLength, dense: true)
             }
         }
         if let q = quakeStart {
@@ -913,7 +910,17 @@ final class Brain {
         let c1 = high(from.x + (target.x - from.x) * 0.25), c2 = high(from.x + (target.x - from.x) * 0.75)
         let chord = hypot(c1.x - from.x, c1.y - from.y) + hypot(c2.x - c1.x, c2.y - c1.y) + hypot(target.x - c2.x, target.y - c2.y)
         flight = Flight(start: now, length: max(2.6, Double(chord) * 0.8 / 200), from: from, c1: c1, c2: c2, to: target)
-        onSound?(.whoosh)
+        onSound?(.liftoff)
+    }
+
+    /// Goodbye: the arrival in reverse. With a parting cry it takes off the way it always flies and climbs away
+    /// off the side of the screen it is facing, high up where it came in from.
+    private func beginExit(at now: Double) {
+        let bounds = walkBounds(), from = windowOrigin(), dir: CGFloat = facingRight ? 1 : -1
+        let to = CGPoint(x: dir > 0 ? bounds.maxX + 260 : bounds.minX - 260, y: groundY() + bounds.height * 0.75)
+        let c1 = CGPoint(x: from.x + dir * 140, y: from.y + 120)               // a strong climb off the spot first
+        let c2 = CGPoint(x: (from.x + to.x) / 2, y: to.y)                       // then out on open wings
+        flight = Flight(start: now, length: Phoenix.exitLength, from: from, c1: c1, c2: c2, to: to)
     }
 
     private func flightPoint(_ f: Flight, _ u: Double) -> CGPoint {

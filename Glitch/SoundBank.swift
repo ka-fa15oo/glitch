@@ -8,10 +8,10 @@ enum SoundEffect {
     case petals                            // Faelis's click: a shower of flowers from her wand
     case call, wilt                        // Faelis's sentinel: calling out for a question, petals wilting on an error
     case ignite, whoosh, shriek, smother   // the phoenix: catching fire, a burst of flame, its cry, flames smothered
-    case roar, blast                       // the phoenix breathing fire, and its goodbye burst
+    case roar, crackle, liftoff, dragon   // the phoenix: a torrent of fire, embers popping, a wing beat taking off, its roar
 }
 
-/// Tiny synthesizer: every effect is generated in code, so there are no audio assets.
+/// Tiny synthesizer: every effect is generated in code, except the phoenix's recorded ones (Sounds/phoenix_*.wav).
 @MainActor
 final class SoundBank {
     private let engine = AVAudioEngine()
@@ -20,6 +20,7 @@ final class SoundBank {
     private var buffers: [String: AVAudioPCMBuffer] = [:]
 
     private enum Wave { case sine, square, noise }
+    private enum Shape { case decay, rise }   // each step dies away, or swells up to its end
     private struct Step {
         var from: Double
         var to: Double
@@ -27,6 +28,8 @@ final class SoundBank {
         var wave: Wave = .sine
         var gain: Double = 0.5
         var crush = false
+        var shape = Shape.decay
+        var parallel = false   // plays together with the step before it instead of after it
     }
 
     init() {
@@ -52,10 +55,20 @@ final class SoundBank {
         if !engine.isRunning { try? engine.start() }
         guard engine.isRunning else { return }
         let key = "\(effect)"
-        let buffer = buffers[key] ?? makeBuffer(for: effect)
+        let buffer = buffers[key] ?? recording(effect) ?? makeBuffer(for: effect)
         buffers[key] = buffer
         player.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
         if !player.isPlaying { player.play() }
+    }
+
+    /// The phoenix's own recordings (free sounds, see README), turned down to sit with the synthesized ones.
+    private func recording(_ effect: SoundEffect) -> AVAudioPCMBuffer? {
+        guard let url = Bundle.main.url(forResource: "phoenix_\(effect)", withExtension: "wav"),
+              let file = try? AVAudioFile(forReading: url), file.processingFormat == format,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(file.length)),
+              (try? file.read(into: buffer)) != nil else { return nil }
+        for i in 0 ..< Int(buffer.frameLength) { buffer.floatChannelData![0][i] *= 0.55 }
+        return buffer
     }
 
     private func steps(for effect: SoundEffect) -> [Step] {
@@ -163,9 +176,23 @@ final class SoundBank {
             [Step(from: 85, to: 120, duration: 0.18, wave: .square, gain: 0.14, crush: true),
              Step(from: 0, to: 0, duration: 0.9, wave: .noise, gain: 0.28),
              Step(from: 120, to: 60, duration: 0.3, wave: .square, gain: 0.1, crush: true)]
-        case .blast:    // the last, hardest stroke as it takes off: a deep thump of air and a rush of wind
-            [Step(from: 70, to: 38, duration: 0.22, gain: 0.8),
-             Step(from: 0, to: 0, duration: 0.55, wave: .noise, gain: 0.26)]
+        case .dragon:   // a dragon's roar: a growl swelling up from deep in the chest, two rough voices grinding against
+            // each other, a sub-bass rumble under them and the rush of fire through it, dying away slowly
+            [Step(from: 55, to: 90, duration: 0.45, wave: .square, gain: 0.2, crush: true, shape: .rise),
+             Step(from: 59, to: 96, duration: 0.45, wave: .square, gain: 0.12, crush: true, shape: .rise, parallel: true),
+             Step(from: 0, to: 0, duration: 0.45, wave: .noise, gain: 0.18, shape: .rise, parallel: true),
+             Step(from: 90, to: 48, duration: 1.4, wave: .square, gain: 0.24, crush: true),
+             Step(from: 96, to: 51, duration: 1.4, wave: .square, gain: 0.15, crush: true, parallel: true),
+             Step(from: 45, to: 28, duration: 1.6, gain: 0.45, parallel: true),
+             Step(from: 0, to: 0, duration: 1.5, wave: .noise, gain: 0.3, parallel: true)]
+        case .liftoff:   // the launch: a deep boom, a rush of air and a bright sweep rising away
+            [Step(from: 80, to: 28, duration: 0.3, gain: 0.7),
+             Step(from: 0, to: 0, duration: 1.2, wave: .noise, gain: 0.25, parallel: true),
+             Step(from: 260, to: 2600, duration: 1.3, gain: 0.12, parallel: true)]
+        case .crackle:  // a reminder: two faint pops of embers
+            [Step(from: 0, to: 0, duration: 0.04, wave: .noise, gain: 0.2, crush: true),
+             Step(from: 0, to: 0, duration: 0.12, gain: 0),
+             Step(from: 0, to: 0, duration: 0.05, wave: .noise, gain: 0.22, crush: true)]
         case .smother:  // the flames hiss out and sink
             [Step(from: 0, to: 0, duration: 0.5, wave: .noise, gain: 0.2),
              Step(from: 170, to: 70, duration: 0.3, wave: .square, gain: 0.08, crush: true)]
@@ -181,8 +208,13 @@ final class SoundBank {
         var samples: [Float] = []
         var phase = 0.0
         var lowPass = 0.0
+        var at = 0, lastStart = 0
         for step in steps(for: effect) {
             let count = Int(step.duration * rate)
+            let start = step.parallel ? lastStart : at
+            if samples.count < start + count { samples += [Float](repeating: 0, count: start + count - samples.count) }
+            if !step.parallel { lastStart = start }
+            at = max(at, start + count)
             for i in 0 ..< count {
                 let p = Double(i) / Double(max(count - 1, 1))
                 let freq = step.from + (step.to - step.from) * p
@@ -198,8 +230,8 @@ final class SoundBank {
                 }
                 if step.crush { value = (value * 4).rounded() / 4 }
                 let attack = min(1, Double(i) / (0.006 * rate))
-                let envelope = attack * pow(1 - p, 1.6)
-                samples.append(Float(value * step.gain * envelope))
+                let envelope = attack * (step.shape == .decay ? pow(1 - p, 1.6) : p * p * min(1, (1 - p) * 25))
+                samples[start + i] += Float(value * step.gain * envelope)
             }
         }
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count))!
