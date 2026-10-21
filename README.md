@@ -2,7 +2,22 @@
 
 **A desktop companion for macOS that keeps watch over your Claude Code sessions.**
 
-Glitch is a native SwiftUI desktop pet app for macOS. Its companion **Vorn**, a pixel ghost-knight, stands guard quietly at the bottom of your screen. When one of your Claude Code sessions needs you, he shows it with his sword, not with a popup. You can also pick **Wizzy**, a cosmic mage who answers with runes, a crystal ball and falling stars.
+Glitch is a native SwiftUI desktop pet app for macOS. A pixel companion lives quietly at the bottom of your screen. When one of your Claude Code sessions needs you, it tells you with a move, not with a popup. Free and open source.
+
+<p align="center"><img src="docs/images/characters.png" width="720" alt="Vorn the ghost-knight, Wizzy the cosmic mage, Faelis the fairy queen and the Phoenix"></p>
+
+## Pick your companion
+
+| | Who | Permission waiting | Question | Finished | Error |
+|---|---|---|---|---|---|
+| ⚔️ | **Vorn**, a cursed pixel ghost-knight | keeps vigil, sword upright | turns to look at you | flicks his sword | lets the sword slip and catches it |
+| ✨ | **Wizzy**, a cosmic mage | a red rune hangs in the air | gazes into a crystal ball | a feast of falling stars | the spell sputters |
+| 🌸 | **Faelis**, a fairy elf queen | a flower bud | a calling wave | the bud blooms | the flower wilts |
+| 🔥 | **Phoenix**, a crimson firebird | a wall of fire round its feet | a beacon of flame from its crest | a golden feather drifts down | its flames go out in smoke |
+
+Each one has its own arrival, goodbye, click and idle moves, its own sounds and its own menu bar icon. Switch any time in the Customize window.
+
+The pictures below show Vorn.
 
 <p align="center">
   <img src="docs/images/idle.png" width="180" alt="Vorn standing guard">
@@ -24,7 +39,7 @@ If you run several Claude Code sessions at once, it's easy to miss the one waiti
 - **One spark per session.** Crimson means "waiting for you", gold means "done, come and look".
 - **Hover** over your companion to see the list (project · session · state · how long).
 - **Click** to open the most urgent session. Desktop sessions open directly; terminal sessions bring your terminal forward.
-- **Calm by design.** He only reacts when something actually happens. If a permission request goes unanswered for 5 minutes he reminds you once, then waits again.
+- **Calm by design.** Your companion only reacts when something actually happens. If a permission request goes unanswered for 5 minutes it reminds you once, then waits again.
 - **Choose which projects count** under *Watched projects* in the menu.
 
 <p align="center"><img src="docs/images/finished-error-sparks.png" width="560" alt="Finished move, error move and shoulder sparks"></p>
@@ -39,8 +54,8 @@ Glitch adds a tiny hook script to Claude Code's global settings (`~/.claude/sett
 
 ## Also
 
-- Breathes, blinks, wanders, changes stance, and greets you when your Mac wakes.
-- Drag him around; he reacts and falls back to the ground.
+- Breathes, blinks, wanders (the phoenix flies), changes stance, and greets you when your Mac wakes.
+- Drag it around; it reacts and settles back down.
 - Steps out of the way of the text box you're typing in (needs the Accessibility permission).
 - Hides when a fullscreen app is in front.
 - Sounds are synthesized in code (the phoenix uses free recordings), and each group can be turned off.
@@ -49,6 +64,13 @@ Glitch adds a tiny hook script to Claude Code's global settings (`~/.claude/sett
 
 **Customize:** color theme, size, liveliness (calm / normal / lively), gravity, hide in fullscreen.
 **Sound:** volume, mute, per-event sound groups.
+
+## Install
+
+1. Download `Glitch.zip` from [Releases](../../releases) and move `Glitch.app` to `/Applications`.
+2. The app isn't notarized by Apple, so the first time **right-click → Open**, then **Open** again. If macOS still refuses, run `xattr -dr com.apple.quarantine /Applications/Glitch.app` once.
+
+Or build it yourself (below).
 
 ## Requirements
 
@@ -73,9 +95,9 @@ xcodebuild -scheme Glitch -destination 'platform=macOS' test
 
 ## First run
 
-1. Open Glitch. He drops in from the top of the screen.
+1. Open Glitch and pick a companion on the welcome screen.
 2. Menu bar icon → **Claude Code sentinel: Install…** to install the sentinel hook.
-3. Optional: grant **Accessibility** (System Settings → Privacy & Security) so he can step out of the way of text boxes.
+3. Optional: grant **Accessibility** (System Settings → Privacy & Security) so it can step out of the way of text boxes.
 
 ## License
 
