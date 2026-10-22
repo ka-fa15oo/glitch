@@ -23,10 +23,36 @@ enum Phoenix {
     }()
     static let hitBounds = Sprite.bounds(of: hitMask)
 
-    /// Arrival (`pose.rebirth` = seconds in): a pile of ash glows on its spot and embers spiral up off it; at `riseAt` a
-    /// column of flame bursts out and the bird rises out of it over `riseLength` s, black as charcoal and heating up from
-    /// its feet; at `wingsAt` it throws its wings open and the ash blows away; the brain lets go at `arrivalLength`.
-    static let riseAt = 1.6, riseLength = 0.65, wingsAt = 2.3, arrivalLength = 3.1
+    /// Arrival (`pose.rebirth` = seconds in): ash drifts down over a wide stretch of ground round its spot and lies
+    /// smouldering (`spreadAshes`); from `gatherAt` it lifts and streams in, each flake to a pixel of the folded bird,
+    /// building it out of grey ash from its feet up to its crest between `buildAt` and `buildAt + buildLength`, an ember
+    /// line glowing where the ash fuses. At `hotAt` it catches fire: a white-hot flash and its own colours; at `wingsAt`
+    /// its wings snap open in `snapLength` s (its own 3/4 frames): a white-gold flash, a warm glow, the last ash flung out,
+    /// its cry. It holds that pose until `foldAt`, folds its wings over `foldLength` s and the brain lets go at `arrivalLength`.
+    /// Nothing ever stands still: it breathes, its embers flicker and the glow pulses.
+    static let gatherAt = 1.6, buildAt = 2.2, buildLength = 2.0, hotAt = 4.3, wingsAt = 4.8, snapLength = 0.18
+    static let foldAt = 5.55, foldLength = 0.45, arrivalLength = 6.2
+    /// Its sounds: the ash settling, a rush as it lifts, the flames catching, the cry on the frame its wings are open.
+    static let arrivalCues: [(at: Double, sound: SoundEffect)] = [(0.9, .crackle), (gatherAt, .whoosh), (hotAt - 0.2, .ignite), (wingsAt + snapLength, .shriek)]
+
+    /// The arrival's frames: perched until its wings snap open (easing out), held up, then beaten closed (easing in and
+    /// out). Between two frames it cross-fades, `mix` of the way from `from` to `to`. The wing frames are drawn
+    /// `perchDrop` lower than they are pinned, so the beak stays put while the wings move (flaps[2] dips its head: left out).
+    private static let opening = [perch, flaps[3], flaps[4], flaps[5]], folding = [flaps[5], flaps[0], flaps[1], flaps[3], perch]
+    private static func arrivalFrames(_ age: Double) -> (from: CGImage, to: CGImage, mix: Double) {
+        func along(_ seq: [CGImage], _ k: Double) -> (CGImage, CGImage, Double) {
+            let p = clamp(k) * Double(seq.count - 1), i = min(seq.count - 2, Int(p))
+            return (seq[i], seq[i + 1], p - Double(i))
+        }
+        if age < wingsAt { return (perch, perch, 0) }
+        if age < foldAt { return along(opening, 1 - pow(1 - clamp((age - wingsAt) / snapLength), 3)) }
+        return along(folding, ease((age - foldAt) / foldLength))
+    }
+
+    /// A slow breath while it stands through its arrival, half an art pixel each way, eased in and out of it.
+    private static func arrivalBreath(_ age: Double) -> Double {
+        0.5 * sin(2 * .pi * age / 1.5) * ease((age - hotAt) / 0.5) * (1 - ease((age - arrivalLength + 0.4) / 0.4))
+    }
     /// Goodbye (`pose.ash` = seconds in): it flies off the screen in `exitLength` s, blazing white-gold, and from
     /// `exitBreathAt` roars like a dragon and pours a torrent of fire out ahead of it for `exitBreathLength` s.
     static let exitLength = 3.2, exitBreathAt = 0.35, exitBreathLength = 1.8
@@ -45,7 +71,7 @@ enum Phoenix {
     private static func frame(t: Double, busy: Double, pose: Brain.Pose) -> CGImage {
         func beat(_ step: Double) -> CGImage { flaps[Int(t / step) % flaps.count] }
         if busy > 0.1 { return beat(frameTime(busy: busy)) }
-        if pose.rebirth >= 0 { return pose.rebirth < wingsAt ? perch : hover }   // rises with its wings folded, then spreads them
+        if pose.rebirth >= 0 { let f = arrivalFrames(pose.rebirth); return f.mix < 0.5 ? f.from : f.to }
         let flying = pose.aloft > 0.5 && !pose.hovering
         if flying { return pose.beat > 0.5 ? beat(frameTime(busy: 0)) : glide }
         if pose.cast >= 0, pose.cast < clickBreath { return hover }   // rears up to breathe fire
@@ -119,21 +145,24 @@ enum Phoenix {
 
     static func draw(_ outer: inout GraphicsContext, unit: CGFloat, size: CGSize, t: Double, pose: Brain.Pose) {
         let busy = max(pose.carriedAmount, pose.fallAmount)
-        let bx = pose.bodyDX + pose.shakeX, by = pose.bodyDY
+        let sprite = frame(t: t, busy: busy, pose: pose)
+        let arrival = pose.rebirth >= 0 ? arrivalFrames(pose.rebirth) : nil
+        // during the arrival the body follows the wing frames down in step with the cross-fade, and breathes
+        let lift = arrival.map { a in perchDrop * ((a.from === perch ? 0 : 1 - a.mix) + (a.to === perch ? 0 : a.mix)) + arrivalBreath(pose.rebirth) } ?? 0
+        let bx = pose.bodyDX + pose.shakeX, by = pose.bodyDY + lift
         let body = Pixels(ctx: outer, unit: unit, dx: bx, dy: by)      // follows the bird
         let floor = Pixels(ctx: outer, unit: unit, dx: bx, dy: 0)      // stays on the ground
         let flying = pose.aloft > 0.5 && !pose.hovering
         let calm = busy < 0.1 && pose.misfire < 0 && pose.rebirth < 0 && pose.ash < 0 && !flying
         let flare = calm ? flareAge(t: t) : nil
-        let sprite = frame(t: t, busy: busy, pose: pose)
         let head = Pixels(ctx: outer, unit: unit, dx: bx, dy: by + (sprite === perch ? perchDrop : 0))   // crest and eyes
 
         // behind the bird
         if pose.rune >= 0 { fireWall(floor, t: t, age: pose.rune, nudge: pose.nudge, front: false) }
         if pose.orb >= 0 { beacon(head, t: t, age: pose.orb) }
-        if pose.rebirth >= 0 { rebirthFire(floor, age: pose.rebirth) }
+        if pose.rebirth >= 0 { wakeGlow(outer, unit: unit, dx: bx, dy: by, age: pose.rebirth) }
         // each downstroke pushes a faint breath of wind off the wings
-        if sprite !== perch, sprite !== glide, sprite !== hover {
+        if arrival == nil, sprite !== perch, sprite !== glide, sprite !== hover {
             wind(body, t: t, step: busy > 0.1 ? frameTime(busy: busy) : flying ? frameTime(busy: 0) : hoverFrameTime)
         }
 
@@ -165,8 +194,17 @@ enum Phoenix {
         let rect = CGRect(x: (bx - Double(padLeft)) * unit, y: (by - Double(padTop)) * unit,
                           width: canvas.width * unit, height: canvas.height * unit)
         let image = Image(decorative: sprite, scale: 1).interpolation(.none)
-        if pose.rebirth >= 0, pose.rebirth < wingsAt {
-            risingBird(ctx, image: image, rect: rect, unit: unit, age: pose.rebirth)
+        if arrival != nil, pose.rebirth < wingsAt {
+            ashBird(ctx, image: image, rect: rect, unit: unit, age: pose.rebirth)
+        } else if let a = arrival {
+            let base = lift - arrivalBreath(pose.rebirth)   // where `by` puts the frames, less the breath they keep
+            // each frame stays solid through its half of the blend, so the body never turns see-through
+            for (frame, k) in [(a.from, 1 - a.mix), (a.to, a.mix)] where k > 0.001 {
+                var c = ctx
+                c.opacity *= min(1, 2 * k)
+                c.draw(Image(decorative: frame, scale: 1).interpolation(.none),
+                       in: rect.offsetBy(dx: 0, dy: ((frame === perch ? 0 : perchDrop) - base) * unit))
+            }
         } else { ctx.draw(image, in: rect) }
 
         // the bird blazing up: its own frame again, added on top
@@ -175,7 +213,6 @@ enum Phoenix {
         if pose.cast >= 0 { glow = max(glow, 0.45 * sin(.pi * clamp(pose.cast / clickBreath))) }
         if pose.feast >= 0 { glow = max(glow, 0.5 * (1 - clamp(pose.feast / 1.2))) }
         if pose.misfire > 0.75 { glow = max(glow, 0.45 * sin(.pi * clamp((pose.misfire - 0.75) / 0.6))) }
-        if pose.rebirth >= wingsAt { glow = max(glow, 0.8 * (1 - clamp((pose.rebirth - wingsAt) / 0.6))) }   // still white-hot as its wings open
         if pose.ash >= 0 { glow = max(glow, (0.55 + 0.15 * sin(t * 13)) * ease(pose.ash / 0.4)) }   // leaving ablaze, flickering white-hot
         if glow > 0.02 {
             var g = ctx
@@ -186,8 +223,8 @@ enum Phoenix {
 
         // in front of the bird
         if pose.rune >= 0 { fireWall(floor, t: t, age: pose.rune, nudge: pose.nudge, front: true) }
-        if pose.rebirth >= 0 { ashPile(floor, age: pose.rebirth) }
-        if pose.reveal > 0.5, pose.rebirth < 0 || pose.rebirth >= riseAt + riseLength {   // nothing to shed embers until it has risen
+        if pose.rebirth >= 0 { flungAsh(body, age: pose.rebirth) }
+        if pose.reveal > 0.5, pose.rebirth < 0 || pose.rebirth >= hotAt {   // ash sheds no embers
             let heat = pose.ash >= 0 ? 1 : max(busy, flying ? 0.6 : 0)
             if let origin = pose.origin {
                 screenEmbers(t: t, origin: origin, unit: unit, facingRight: pose.facingRight,
@@ -206,72 +243,91 @@ enum Phoenix {
 
     // MARK: - effects
 
-    /// The arrival's ash pile sits under its feet (sprite grid).
-    private static let pileX = 32.0
+    /// The middle of the ash, under its feet (sprite grid).
+    private static let spotX = 32.0
+    private static let ashes = [Color(red: 0.59, green: 0.56, blue: 0.56), Color(red: 0.41, green: 0.38, blue: 0.38),
+                                Color(red: 0.26, green: 0.24, blue: 0.24), Color(red: 0.15, green: 0.14, blue: 0.15)]
 
-    /// Rising from the ashes: the folded bird comes up out of the pile, cut off at the ground, black as charcoal above a
-    /// front of heat that climbs from its feet to its crest, with a white-hot rim along the front.
-    private static func risingBird(_ ctx: GraphicsContext, image: Image, rect: CGRect, unit: CGFloat, age: Double) {
-        guard age >= riseAt else { return }
-        let rise = ease((age - riseAt) / riseLength), heat = ease((age - riseAt - 0.15) / 0.5)
-        let r = rect.offsetBy(dx: 0, dy: (1 - rise) * 80 * unit)
-        let front = r.minY + (122 - heat * 76) * unit                  // the perch frame spans canvas rows 46...121
+    /// The perched frame's opaque pixels (window canvas, art px, one per pixel): where the ash flies to.
+    static let perchPixels: [CGPoint] = {
+        let w = perch.width, h = perch.height
+        let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.draw(perch, in: CGRect(x: 0, y: 0, width: w, height: h))
+        let px = ctx.data!.bindMemory(to: UInt8.self, capacity: w * h * 4)
+        return (0 ..< w * h).filter { px[$0 * 4 + 3] > 20 }.map { CGPoint(x: $0 % w, y: $0 / w) }
+    }()
+    static let perchTop = perchPixels.map(\.y).min()!, perchBottom = perchPixels.map(\.y).max()!
+
+    /// When the ash reaches the perched frame's row `y`: the bird is built from its bottom row up to its top.
+    static func built(row y: Double) -> Double { buildAt + (perchBottom - y) / (perchBottom - perchTop) * buildLength }
+
+    /// Built out of the gathering ash: grey below the line the ash has reached, an ember glow along it; at `hotAt` it
+    /// catches fire, flashing white-hot into its own colours.
+    private static func ashBird(_ ctx: GraphicsContext, image: Image, rect: CGRect, unit: CGFloat, age: Double) {
+        guard age >= buildAt else { return }
         let far = 1e5
         func band(_ top: CGFloat, _ bottom: CGFloat) -> Path { Path(CGRect(x: -far, y: top, width: 2 * far, height: bottom - top)) }
+        let rows = perchBottom + 1 - perchTop
+        let front = rect.minY + (perchBottom + 1 - rows * clamp((age - buildAt) / buildLength)) * unit
         var c = ctx
-        c.clip(to: band(-far, (ground + 2) * unit))   // below the ground: still in the ash (the perched tail stays in it until the wings open)
-        var hot = c
-        hot.clip(to: band(front, far))
-        hot.draw(image, in: r)
-        var coal = c
-        coal.clip(to: band(-far, front))
-        coal.addFilter(.colorMultiply(Color(red: 0.16, green: 0.12, blue: 0.12)))
-        coal.draw(image, in: r)
-        var rim = c
-        rim.clip(to: band(front - 3 * unit, front + 3 * unit))
-        rim.addFilter(.colorMultiply(yellow))
-        rim.blendMode = .plusLighter
-        rim.draw(image, in: r)
+        c.clip(to: band(front, far))
+        let fire = ease((age - hotAt) / 0.35)
+        if fire < 1 {
+            var ash = c
+            ash.addFilter(.saturation(0))
+            ash.addFilter(.colorMultiply(ashes[0]))
+            ash.draw(image, in: rect)
+            var glow = c   // embers still alive in the ash
+            glow.addFilter(.colorMultiply(orange))
+            glow.blendMode = .plusLighter
+            glow.opacity *= (0.12 + 0.08 * sin(age * 9) * sin(age * 5.3)) * (1 - fire)
+            glow.draw(image, in: rect)
+        }
+        if fire > 0 {
+            var lit = c
+            lit.opacity *= fire
+            lit.draw(image, in: rect)
+        }
+        let flash = sin(.pi * clamp((age - hotAt) / 0.6))
+        let edge = age < buildAt + buildLength ? 1.0 : 0
+        for (k, area) in [(flash, band(-far, far)), (edge, band(front - 2 * unit, front + 2 * unit))] where k > 0.02 {
+            var hot = c
+            hot.clip(to: area)
+            hot.addFilter(.colorMultiply(pale))
+            hot.blendMode = .plusLighter
+            hot.opacity *= k
+            hot.draw(image, in: rect)
+            hot.draw(image, in: rect)
+        }
     }
 
-    /// Behind the bird on its arrival: embers spiralling up off the glowing ash, then the column of flame it rises from.
-    private static func rebirthFire(_ px: Pixels, age: Double) {
-        if age >= 0.8, age < riseAt + 1 {
-            let k = ease((age - 0.8) / 0.8) * (1 - ease((age - wingsAt) / 0.3))
-            for i in 0 ..< 40 {
-                let a = ((age - 0.8) * (0.8 + hash(i, 63)) + hash(i, 64)).truncatingRemainder(dividingBy: 1)
-                let angle = hash(i, 65) * 2 * .pi + a * 9, r = (20 - 12 * a) * (1 - 0.3 * k)
-                px.dot(pileX + cos(angle) * r, ground - 4 - a * 70 * (0.5 + k), fire(a), (1 - a) * k, size: hash(i, 66) > 0.7 ? 2 : 1)
-            }
+    /// Behind the bird as its wings snap open: a white-gold flash and a warm glow that holds through its pose, then cools.
+    private static func wakeGlow(_ ctx: GraphicsContext, unit: CGFloat, dx: Double, dy: Double, age: Double) {
+        let a = age - wingsAt - snapLength
+        guard a >= -0.03, a < 1.3 else { return }
+        let flash = a >= 0 ? exp(-a / 0.07) : 0.6, warm = (1 - ease((a - 0.45) / 0.8)) * (0.85 + 0.15 * sin(2 * .pi * a * 1.3))   // pulses as it cools
+        var c = ctx
+        c.blendMode = .plusLighter
+        c.translateBy(x: (dx + 34) * unit, y: (dy + 26) * unit)
+        c.scaleBy(x: 1.15, y: 1)
+        let disc = Path(ellipseIn: CGRect(x: -44 * unit, y: -44 * unit, width: 88 * unit, height: 88 * unit))
+        for (colour, k) in [(Color(red: 1, green: 0.92, blue: 0.67), flash), (Color(red: 1, green: 0.59, blue: 0.16), 0.6 * warm)] where k > 0.01 {
+            let stops = [1, 0.56, 0.25, 0.06, 0].enumerated().map { Gradient.Stop(color: colour.opacity(k * $1), location: Double($0) / 4) }
+            c.fill(disc, with: .radialGradient(Gradient(stops: stops), center: .zero, startRadius: 0, endRadius: 44 * unit))
         }
-        guard age >= riseAt, age < wingsAt + 0.5 else { return }
-        let k = ease((age - riseAt) / 0.25) * (1 - ease((age - wingsAt) / 0.5))
+    }
+
+    /// The last of the ash, flung out by its wings as they snap open.
+    /// shortcut: the flung ash is cut off at the window's edges; draw it in a screen overlay if that ever shows.
+    private static func flungAsh(_ body: Pixels, age: Double) {
+        let burst = age - wingsAt - snapLength
+        guard burst >= 0, burst < 1.3 else { return }
+        let fly = (1 - exp(-burst * 3.2)) / 3.2   // thrown out, air drag slows it
         for i in 0 ..< 140 {
-            let a = ((age - riseAt) * (1.6 + hash(i, 67)) + hash(i, 68)).truncatingRemainder(dividingBy: 1)
-            let x = pileX + (hash(i, 69) - 0.5) * 18 * (1 - 0.5 * a) + sin(age * 9 + Double(i)) * 2
-            px.dot(x, ground - a * 95, fire(0.3 + 0.7 * a), (1 - a) * k, size: a < 0.3 ? 2 : 1)
-        }
-    }
-
-    /// In front of the bird on its arrival: the ash pile, its embers beating like a heart and glowing hotter as the fire
-    /// gathers, thrown off to both sides by the first beat of its wings.
-    /// shortcut: the flying ash is cut off at the window's edges; draw it in a screen overlay if that ever shows.
-    private static func ashPile(_ px: Pixels, age: Double) {
-        let heart = age < riseAt ? pow(max(0, sin(age * 2 * .pi * 1.4)), 6) : 0
-        let glow = max(age < 0.8 ? 0.35 * heart : 0, age < wingsAt + 0.3 ? ease((age - 0.8) / 0.8) : 0)
-        let fly = (age - wingsAt) / 0.9
-        guard fly < 1 else { return }
-        for i in 0 ..< 110 {
-            let side = hash(i, 60) * 2 - 1, gy = hash(i, 61), s = 0.2 + 0.8 * hash(i, 62)
-            var x = pileX + side * 22, y = ground - gy * 9 * (1 - side * side)
-            if fly > 0 { x += side * fly * 45 * s; y += -22 * s * fly + 30 * fly * fly * hash(i, 63) }
-            let fade = fly > 0 ? 1 - fly : 1
-            px.dot(x, y, i % 3 == 0 ? smoke : ashGrey, fade, size: fly > 0 && i % 4 == 0 ? 2 : 1)
-            px.dot(x, y, fire(0.55 + 0.4 * gy), glow * (1 - gy * 0.5) * fade)
-        }
-        guard age < wingsAt else { return }
-        for i in 0 ..< 12 {   // the embers in the ash
-            px.dot(pileX - 14 + hash(i, 70) * 28, ground - 2 - hash(i, 71) * 5, fire(0.5), 0.3 + 0.7 * heart + glow)
+            let angle = hash(i, 12) * 2 * .pi, d = (50 + hash(i, 13) * 90) * fly
+            body.dot(24 + cos(angle) * (8 + d) * 1.25, 36 + sin(angle) * (6 + d) * 0.8 + 18 * burst * burst * hash(i, 14) - 6 * burst,
+                     ashes[Int(hash(i, 15) * 4)], 1 - pow(burst / 1.3, 2))
         }
     }
 
@@ -542,6 +598,66 @@ enum Phoenix {
         }))
         window.orderFrontRegardless()
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) { window.close() }
+    }
+
+    /// The arrival begins: the ash that builds the bird, over the screen round its spot.
+    @MainActor static func spreadAshes(windowOrigin: CGPoint, facingRight: Bool) {
+        overlay(at: CGPoint(x: spotX, y: ground), windowOrigin: windowOrigin, facingRight: facingRight, for: buildAt + buildLength + 0.1) { spot, _ in
+            AshField(spot: spot, unit: RobotView.scale, facingRight: facingRight)
+        }
+    }
+
+    /// Thousands of grey flakes of ash drifting down round its spot, a very rare one still red; then lifting and
+    /// streaming in on arcs, each to its own pixel of the folded bird, the bottom rows first.
+    struct AshField: View {
+        /// Half the drift's width: it covers about two and a half times the perched bird's width.
+        nonisolated static let greys = [0.78, 0.66, 0.55, 0.45, 0.36, 0.28, 0.2].map { Color(white: $0) }
+        nonisolated static let reds = [red, Color(red: 0.43, green: 0.03, blue: 0.04)]
+        nonisolated static let count = 2000, spread = 1.25 * Double(perchPixels.map(\.x).max()! - perchPixels.map(\.x).min()! + 1)
+        let spot: CGPoint   // view coordinates, y down
+        let unit: CGFloat
+        let facingRight: Bool
+        var fixedAge: Double?
+        private let began = Date.timeIntervalSinceReferenceDate
+
+        var body: some View {
+            if let fixedAge {
+                canvas(age: fixedAge)
+            } else {
+                TimelineView(.animation) { canvas(age: $0.date.timeIntervalSinceReferenceDate - began) }
+            }
+        }
+
+        private func canvas(age: Double) -> some View {
+            Canvas { c, _ in
+                let px = Pixels(ctx: c, unit: unit, dx: spot.x / unit, dy: spot.y / unit)   // art px from the spot
+                let n = perchPixels.count
+                for i in 0 ..< Self.count {
+                    // every pixel of the bird gets a flake, the rest fill in at random
+                    let t = perchPixels[i < n ? i : Int(hash(i, 80) * Double(n))]
+                    let arrive = built(row: t.y)
+                    guard age < arrive else { continue }
+                    let tx = (t.x + 0.5 - Double(padLeft) - spotX) * (facingRight ? -1 : 1), ty = t.y - Double(padTop) - ground
+                    // where it lies: a wide drift, thickest round the spot
+                    let sx = (hash(i, 81) + hash(i, 82) + hash(i, 98) - 1.5) / 1.5 * 1.3 * Self.spread   // thinning out to the sides, no edge
+                    let sy = (hash(i, 83) - 0.6) * 12 * max(0, 1 - 0.6 * abs(sx) / Self.spread)
+                    // falling freely like ash: each at its own slow, steady speed from its own height (some already on the
+                    // way down when it starts), all carried the same way on the wind, swaying as they go
+                    let height = 60 + 220 * hash(i, 89), fall = height / (110 + 70 * hash(i, 94)), lands = 0.4 + 1.1 * hash(i, 84)
+                    let k = clamp((age - lands + fall) / fall), left = (1 - k) * fall   // seconds before it lands
+                    let blown = -(28 + 14 * hash(i, 87)) * left + sin(age * (2 + 2 * hash(i, 95)) + 6 * hash(i, 96)) * (3 + 6 * hash(i, 97)) * min(1, left)
+                    let dist = hypot(tx - sx, ty - sy)
+                    let leave = max(gatherAt + hash(i, 85) * 0.4, arrive - (0.45 + dist / 260))
+                    let u = clamp((age - leave) / (arrive - leave)), e = ease(u), arc = sin(.pi * u)
+                    let x = sx + (tx - sx) * e + arc * (hash(i, 86) - 0.5) * 30 + blown
+                    let y = sy + (ty - sy) * e - arc * (12 + 26 * hash(i, 88)) * min(1, dist / 120) - height * pow(1 - k, 1.15)
+                    let glint = hash(i, 90) < 0.03   // shades of grey, a very rare one still red
+                    let colour = glint ? Self.reds[Int(hash(i, 91) * 2)] : Self.greys[Int(hash(i, 92) * Double(Self.greys.count))]
+                    let opacity = ease(age / 0.4) * (glint && u == 0 ? 0.6 + 0.4 * sin(age * 7 + Double(i)) : 1)
+                    px.dot(x, y, colour, opacity, size: hash(i, 93) < 0.3 && u < 0.7 ? 2 : 1)
+                }
+            }
+        }
     }
 
     /// A cone of flame tongues pouring out of the beak, widening, rising and dying from white-hot to deep red.

@@ -588,7 +588,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case "feast": pose.feast = e; pose.goldSparks = 2; if e > 0.3, e < 2.2 { pose.eyes = .happy }
                 case "misfire": pose.misfire = e; if e < 0.5 { pose.eyes = .wide }
                 case "call": pose.orb = e; pose.eyes = .happy; pose.bodyDY = -4
-                // the phoenix (run with `-character phoenix`): "rebirth:1.5", "ash:1.8", "quake:0.3", "carry:1", "pcast:0.2"
+                // the phoenix (run with `-character phoenix`): "rebirth:1.5", "ashes:2.5", "ash:1.8", "quake:0.3", "carry:1", "pcast:0.2"
                 case "rebirth": pose.rebirth = e; pose.aloft = 0; pose.redSparks = 0; pose.goldSparks = 0
                 case "ash": pose.ash = e
                 case "quake": pose.quake = e
@@ -624,6 +624,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ? AnyView(Phoenix.FireBreath(start: CGPoint(x: 560, y: 150), dir: -1, unit: 2, length: Phoenix.exitBreathLength, dense: true,
                                          fixedAge: Double(mood.dropFirst(7)) ?? 1)
                 .frame(width: 600, height: 300).background(Color(red: 0.11, green: 0.11, blue: 0.13)))
+            : mood.hasPrefix("ashes:")   // the arrival: the ash over the bird on its spot (at 350, 360)
+            ? AnyView(ZStack(alignment: .topLeading) {
+                RobotView(fixedTime: Double(mood.dropFirst(6)) ?? 2, fixedPose: { var p = Brain.Pose(); p.rebirth = Double(mood.dropFirst(6)) ?? 2; p.aloft = 0; return p }())
+                    .offset(x: 350 - 54 * RobotView.scale, y: 360 - 104 * RobotView.scale)
+                Phoenix.AshField(spot: CGPoint(x: 350, y: 360), unit: RobotView.scale, facingRight: false, fixedAge: Double(mood.dropFirst(6)) ?? 2)
+            }
+                .frame(width: 700, height: 420, alignment: .topLeading).clipped().background(Color(red: 0.11, green: 0.11, blue: 0.13)))
             : mood.hasPrefix("streak")
             ? AnyView(Mage.ShootingStar(start: CGPoint(x: 560, y: 260), facingRight: false, unit: 2,
                                         fixedAge: Double(mood.dropFirst(6)) ?? 0.5)

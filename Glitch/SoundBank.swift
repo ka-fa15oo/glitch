@@ -18,6 +18,8 @@ final class SoundBank {
     private let player = AVAudioPlayerNode()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
     private var buffers: [String: AVAudioPCMBuffer] = [:]
+    /// When the last scheduled phoenix recording ends (host time, s).
+    private var recordingEnds = 0.0
 
     private enum Wave { case sine, square, noise }
     private enum Shape { case decay, rise }   // each step dies away, or swells up to its end
@@ -57,17 +59,43 @@ final class SoundBank {
         let key = "\(effect)"
         let buffer = buffers[key] ?? recording(effect) ?? makeBuffer(for: effect)
         buffers[key] = buffer
-        player.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+        var options: AVAudioPlayerNodeBufferOptions = []
+        if Phoenix.isSelected {   // one sound at a time, never a queue of them: its cry and roar cut in, the rest drop while one plays
+            let now = CACurrentMediaTime(), busy = recordingEnds - now > 0.25
+            if busy, ![.shriek, .dragon].contains(effect) { return }
+            if busy { options = .interrupts }
+            recordingEnds = (busy ? now : max(now, recordingEnds)) + Double(buffer.frameLength) / format.sampleRate
+        }
+        player.scheduleBuffer(buffer, at: nil, options: options, completionHandler: nil)
         if !player.isPlaying { player.play() }
     }
 
-    /// The phoenix's own recordings (free sounds, see README), turned down to sit with the synthesized ones.
+    /// The phoenix's own recordings (free sounds, see README), evened out to sound like one set: the same gentle low-pass
+    /// (~4 kHz) on each, all brought to the same loudness (short of clipping), and faded in over 15 ms and out over 120 ms
+    /// so none starts or stops with a click.
     private func recording(_ effect: SoundEffect) -> AVAudioPCMBuffer? {
         guard let url = Bundle.main.url(forResource: "phoenix_\(effect)", withExtension: "wav"),
               let file = try? AVAudioFile(forReading: url), file.processingFormat == format,
               let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(file.length)),
               (try? file.read(into: buffer)) != nil else { return nil }
-        for i in 0 ..< Int(buffer.frameLength) { buffer.floatChannelData![0][i] *= 0.55 }
+        let s = buffer.floatChannelData![0], n = Int(buffer.frameLength)
+        guard n > 0 else { return buffer }
+        var low: Float = 0, energy: Float = 0, peak: Float = 0
+        for i in 0 ..< n {
+            low += 0.45 * (s[i] - low)
+            s[i] = low
+            energy += low * low
+            peak = max(peak, abs(low))
+        }
+        let rms = (energy / Float(n)).squareRoot()
+        let gain = rms > 0 ? min(0.07 / rms, 0.95 / peak) : 0
+        let fadeIn = min(n / 4, 660), fadeOut = min(n / 3, 5292)
+        for i in 0 ..< n {
+            var g = gain
+            if i < fadeIn { g *= Float(i) / Float(fadeIn) }
+            if i >= n - fadeOut { g *= Float(n - i) / Float(fadeOut) }
+            s[i] *= g
+        }
         return buffer
     }
 
