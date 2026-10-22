@@ -35,8 +35,9 @@ enum Phoenix {
     /// Idle life: every `flareEvery` s (wall clock) it blazes up for `flareLength` s.
     static let flareEvery = 28.0, flareLength = 1.6
 
-    /// Seconds per frame of the six-frame beat: slow, heavy strokes in flight, frantic when carried.
-    static func frameTime(busy: Double) -> Double { 0.11 - 0.06 * busy }
+    /// Seconds per frame of the six-frame beat: slow, heavy strokes in flight, a little brisker when carried.
+    /// A fixed step, not one that slides with `busy`: `t / step` jumps whole frames as the step changes.
+    static func frameTime(busy: Double) -> Double { busy > 0.1 ? 0.085 : 0.11 }
     /// The slower beat that holds it in the air while it hangs in one place.
     static let hoverFrameTime = 0.16
 

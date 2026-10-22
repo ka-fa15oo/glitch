@@ -582,7 +582,7 @@ final class Brain {
             dragVX = 0
             gaveUp = false
             feared = false
-            onSound?(.surprised)
+            if now - lastMove > 5 { onSound?(.surprised) }   // a grab right after the last drag stays quiet
         }
         lastMouseX = mouseX
         lastMove = now
@@ -949,6 +949,7 @@ final class Brain {
 
     /// The phoenix's wings: beating as it flies, slow beats as it hangs in the air, folded on a perch.
     private func applyPhoenix(_ now: Double, carried: Bool, dropping: Bool, to pose: inout Pose) {
+        if carried, abs(dragVX) > 60 { facingRight = dragVX > 0; pose.facingRight = facingRight }   // turns to where it is dragged
         if flight != nil || carried || dropping { pose.aloft = 1; if carried || dropping { pose.beat = 1 }; return }
         guard landing == nil, action?.kind != .farewell else { return }
         let perched = windowOrigin().y <= groundY() + 2
