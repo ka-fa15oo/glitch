@@ -597,6 +597,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // its flight: "fly:1" beating, "fly:0" gliding (banked), "hover:<time>"
                 case "fly": pose.aloft = 1; pose.beat = e; pose.bank = e > 0.5 ? 0 : 0.2; pose.fling = 0.6
                 case "hover": pose.aloft = 1; pose.hovering = true
+                case "finished": Brain.applyFinished(e: e, to: &pose); pose.redSparks = 0; pose.goldSparks = 0
                 case "bud": pose.rune = e
                 case "wilt": pose.misfire = e; pose.eyes = e < 0.3 ? .closed : .happy
                 case "bloom": pose.feast = e; pose.eyes = .happy

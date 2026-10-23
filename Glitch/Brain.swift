@@ -123,38 +123,43 @@ final class Brain {
         pose.bodyDY = 1.6 * sin(.pi * max(0, min(1, (e - 0.2) / 0.25)))     // a jolt as it slips: down and back
     }
 
-    /// Session finished: the wrist flicks the blood off the blade (0 to 0.8 s), then the point is dragged along the
-    /// ground in a shower of gold sparks (0.8 to 1.6 s), and the sword settles (to 2.1 s). The last spark flies to the
-    /// shoulder (1.6 to 2.05 s).
+    /// Session finished: the wrist flicks the blood off the blade and the arm reaches forward to set the point down
+    /// (0 to 0.8 s), then the arm pulls back so the point drags along the ground in a shower of gold sparks (0.8 to
+    /// 1.6 s), and the sword settles (to 2.1 s). The last spark flies to the shoulder (1.6 to 2.05 s).
     static func applyFinished(e: Double, to pose: inout Pose) {
         pose.nearHand = Skeleton.relaxedNear                  // one-handed: the free hand stays on the hip
-        // blade angle measured the same way as the rest angle (0.12 rad); the point's height follows from it
-        func pointY(_ r: Double) -> Double { -34.2 * sin(r) + 40.5 * cos(r) }
-        var rot = 0.0, lift = 0.0
-        var grip = CGPoint.zero
+        // blade angle measured the same way as the rest angle (0.12 rad); the hand height that puts the point on the ground
+        func groundY(_ r: Double) -> Double { 94 - 58 - (-34.2 * sin(r) + 40.5 * cos(r)) }
+        // the drag: the hand travels from forward-low to back while the blade turns only a little
+        let reach = (r: 0.3, x: -7.0), pulled = (r: 0.05, x: 5.0)
+        var r = 0.12, x = 0.0, y = 0.0, lift = 0.0, torso = 0.0
         if e < 0.8 {
             let cock = ease(e / 0.22), snap = ease((e - 0.22) / 0.1), back = ease((e - 0.4) / 0.4)
-            // cock the wrist back, whip the blade out level, let it swing back to rest
+            // cock the wrist back, whip the blade out level, then swing down into the reach
+            var rot = 0.0
             if e < 0.22 { rot = -0.6 * cock }
             else if e < 0.32 { rot = -0.6 + 0.9 * snap }
-            else { rot = 0.3 * (1 - back) + 0.1 * sin((e - 0.32) * 30) * (1 - back) }
-            grip = CGPoint(x: -3 * rot, y: -2 * snap * (1 - back) + min(0, 94 - 58 - pointY(rot + 0.12)))   // point stays off the ground
-            lift = 1.4 * snap * (1 - back)
-            pose.swordRot = rot
-            pose.torsoRot = -0.05 * snap * (1 - back)
+            else { rot = (0.3 + 0.1 * sin((e - 0.32) * 30)) * (1 - back) + (reach.r - 0.12) * back }
+            r = rot + 0.12
+            let flickY = -2 * snap * (1 - back) + min(0, groundY(r))   // point stays off the ground
+            x = -3 * rot * (1 - back) + reach.x * back
+            y = flickY + (groundY(r) - flickY) * back                  // lands exactly as the reach ends
+            lift = 1.4 * snap * (1 - back) - 0.8 * back
+            torso = -0.05 * snap * (1 - back) - 0.07 * back
         } else {
-            // drag the point along the ground: sweep the blade, lowering or raising the hand so the point stays down
             let sweep = ease((e - 0.8) / 0.8), settle = ease((e - 1.6) / 0.5)
-            let r = (0.5 + (-0.2 - 0.5) * sweep) * (1 - settle) + 0.12 * settle     // total angle
-            grip = CGPoint(x: 0, y: 94 - 58 - pointY(r))
-            pose.swordRot = r - 0.12
-            pose.torsoRot = -0.07 * sweep * (1 - settle)
-            lift = 0.8 * sweep * (1 - settle)
+            r = (reach.r + (pulled.r - reach.r) * sweep) * (1 - settle) + 0.12 * settle
+            x = (reach.x + (pulled.x - reach.x) * sweep) * (1 - settle)
+            y = groundY(r)                                             // the point never leaves the ground
+            lift = (-0.8 + 1.4 * sweep) * (1 - settle)                 // the shoulder dips into the reach, rises as it pulls
+            torso = (-0.07 + 0.09 * sweep) * (1 - settle)
             if e < 1.9 { pose.scrapeAge = e - 0.8 }
             if e >= 1.6, e < 2.05 { pose.sparkFlight = (e - 1.6) / 0.45 }
         }
-        pose.grip = grip
+        pose.swordRot = r - 0.12
+        pose.grip = CGPoint(x: x, y: y)
         pose.shoulderLift = lift
+        pose.torsoRot = torso
     }
 
     /// `k` 0...1 is how far into the guard it is.
