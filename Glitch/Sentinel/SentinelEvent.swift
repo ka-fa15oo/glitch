@@ -1,6 +1,6 @@
 import Foundation
 
-/// One Claude Code hook payload, reduced to what the sentinel cares about.
+/// One Claude Code or Codex hook payload (both send the same fields), reduced to what the sentinel cares about.
 struct SentinelEvent: Equatable, Sendable {
     /// `toolDone` = a tool call finished; it only answers a wait if it is the tool that was waiting.
     enum Kind: Equatable, Sendable { case permission, question, finished, error, userActed, toolDone, ended }
@@ -39,8 +39,8 @@ struct SentinelEvent: Equatable, Sendable {
             case "elicitation_dialog": return .question
             default: return nil                                // idle reminders etc.
             }
-        case "UserPromptSubmit", "PermissionDenied":
-            return .userActed                                  // the user wrote again or denied
+        case "UserPromptSubmit", "PermissionDenied", "Interrupt":
+            return .userActed                                  // the user wrote again, denied or stopped (Codex)
         case "PostToolUse", "PostToolUseFailure":
             return .toolDone                                   // approved tool ran (even if it failed) / question answered
         case "Stop":

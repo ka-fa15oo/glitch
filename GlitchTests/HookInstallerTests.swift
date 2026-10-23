@@ -69,6 +69,16 @@ struct HookInstallerTests {
                                           scriptPath: script))
     }
 
+    @Test func codexHooksJSON() throws {
+        let events = HookInstaller.codexEvents
+        let out = try HookInstaller.merged(settings: nil, scriptPath: script, events: events)
+        #expect(HookInstaller.isInstalled(settings: out, scriptPath: script, events: events))
+        #expect(groups(out, "Notification").isEmpty)
+        #expect(groups(out, "Interrupt").count == 1)
+        #expect(!HookInstaller.isInstalled(settings: try HookInstaller.removed(settings: out, scriptPath: script),
+                                           scriptPath: script, events: events))
+    }
+
     @Test func listensToFailedTools() {
         #expect(HookInstaller.events.contains { $0.name == "PostToolUseFailure" })
     }

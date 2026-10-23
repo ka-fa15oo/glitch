@@ -8,7 +8,7 @@ struct WelcomeView: View {
     @AppStorage(Prefs.character) private var character = "glitch"
     @State private var picked: String?   // applied with Start, so the switch plays its goodbye and entrance
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
-    @State private var sentinelInstalled = HookSetup.isInstalled
+    @State private var sentinelInstalled = HookSetup.isInstalled()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -54,7 +54,7 @@ struct WelcomeView: View {
                     } else {
                         Button("Install…") {
                             HookSetup.askAndInstall()
-                            sentinelInstalled = HookSetup.isInstalled
+                            sentinelInstalled = HookSetup.isInstalled()
                         }
                     }
                 } label: {

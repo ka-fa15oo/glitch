@@ -50,6 +50,14 @@ struct SentinelEventTests {
 
     @Test func desktopPromptCarriesTitle() { #expect(parsed("userActed")?.title == "Main") }
 
+    /// Codex sends the same fields; its PermissionRequest has no tool_use_id, so the wait is matched by tool name.
+    @Test func parsesCodexEvents() {
+        let interrupt = Data(#"{"hook_event_name":"Interrupt","session_id":"c1","cwd":"/p","turn_id":"t"}"#.utf8)
+        #expect(SentinelEvent.parse(interrupt, date: date)?.kind == .userActed)
+        let ask = Data(#"{"hook_event_name":"PermissionRequest","session_id":"c1","cwd":"/p","tool_name":"Bash"}"#.utf8)
+        #expect(SentinelEvent.parse(ask, date: date)?.kind == .permission)
+    }
+
     @Test func ignoresUnknownEvent() { #expect(parsed("unknown") == nil) }
     @Test func ignoresMalformedJSON() { #expect(SentinelEvent.parse(Data("{\"hook_event".utf8), date: date) == nil) }
     @Test func ignoresMissingSessionID() {

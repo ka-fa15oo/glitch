@@ -1,11 +1,14 @@
 import Foundation
 
-/// Adds Glitch's hook to Claude Code's settings and takes it out again, leaving everything else as it was.
+/// Adds Glitch's hook to Claude Code's settings (or Codex's hooks.json, same shape) and takes it out again,
+/// leaving everything else as it was.
 enum HookInstaller {
     enum Failure: Error, Equatable { case invalidJSON }
 
+    typealias Event = (name: String, matcher: String?)
+
     /// The hook events the sentinel listens to, with the tool matcher where one is needed.
-    static let events: [(name: String, matcher: String?)] = [
+    static let events: [Event] = [
         ("PermissionRequest", nil),
         ("Notification", nil),
         ("PreToolUse", "AskUserQuestion"),
@@ -15,6 +18,16 @@ enum HookInstaller {
         ("UserPromptSubmit", nil),
         ("Stop", nil),
         ("StopFailure", nil),
+        ("SessionEnd", nil),
+    ]
+
+    /// Codex has no Notification, failure or denial events; Interrupt is the user stopping a turn.
+    static let codexEvents: [Event] = [
+        ("PermissionRequest", nil),
+        ("PostToolUse", nil),
+        ("UserPromptSubmit", nil),
+        ("Stop", nil),
+        ("Interrupt", nil),
         ("SessionEnd", nil),
     ]
 
@@ -29,7 +42,7 @@ enum HookInstaller {
         "'" + scriptPath.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    static func merged(settings: Data?, scriptPath: String) throws -> Data {
+    static func merged(settings: Data?, scriptPath: String, events: [Event] = events) throws -> Data {
         var root = try object(settings)
         var hooks = root["hooks"] as? [String: Any] ?? [:]
         for (name, matcher) in events {
@@ -58,7 +71,7 @@ enum HookInstaller {
         return try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .withoutEscapingSlashes])
     }
 
-    static func isInstalled(settings: Data?, scriptPath: String) -> Bool {
+    static func isInstalled(settings: Data?, scriptPath: String, events: [Event] = events) -> Bool {
         guard let root = try? object(settings), let hooks = root["hooks"] as? [String: Any] else { return false }
         return events.allSatisfy { name, _ in
             (hooks[name] as? [[String: Any]] ?? []).contains { isOurs($0, scriptPath, legacy: true) }
@@ -66,14 +79,15 @@ enum HookInstaller {
     }
 
     /// What the consent dialog lists.
-    static func preview(scriptPath: String) -> String {
+    static func preview(scriptPath: String, file: String = "~/.claude/settings.json", events: [Event] = events,
+                        note: String = "") -> String {
         """
-        A command will be added to ~/.claude/settings.json for these events:
+        A command will be added to \(file) for these events:
         \(events.map { event in event.matcher.map { "\(event.name) (\($0))" } ?? event.name }.joined(separator: ", "))
 
         Command: \(command(scriptPath))
         It hands each event to Glitch as a file. It never blocks anything and sends nothing to the internet.
-        Your existing settings and hooks stay as they are; a settings.json.glitch-backup copy is made first.
+        Your existing settings and hooks stay as they are; a .glitch-backup copy is made first.\(note)
         """
     }
 

@@ -1,8 +1,8 @@
 # Glitch
 
-**A desktop companion for macOS that keeps watch over your Claude Code sessions.**
+**A desktop companion for macOS that keeps watch over your Claude Code and Codex sessions.**
 
-Glitch is a native SwiftUI desktop pet app for macOS. A pixel companion lives quietly at the bottom of your screen. When one of your Claude Code sessions needs you, it tells you with a move, not with a popup. Free and open source.
+Glitch is a native SwiftUI desktop pet app for macOS. A pixel companion lives quietly at the bottom of your screen. When one of your Claude Code or Codex sessions needs you, it tells you with a move, not with a popup. Free and open source.
 
 <p align="center"><img src="docs/images/characters.png" width="720" alt="Vorn the ghost-knight, Wizzy the cosmic mage, Faelis the fairy queen and the Phoenix"></p>
 
@@ -27,7 +27,7 @@ The pictures below show Vorn.
 
 ## The sentinel
 
-If you run several Claude Code sessions at once, it's easy to miss the one waiting for you. Glitch watches **every** Claude Code session on your Mac, in the desktop app and in the terminal, in any project:
+If you run several Claude Code or Codex sessions at once, it's easy to miss the one waiting for you. Glitch watches **every** Claude Code session on your Mac, in the desktop app and in the terminal, in any project, and Codex sessions too:
 
 | A session… | Vorn… | Spark |
 |---|---|---|
@@ -41,16 +41,17 @@ If you run several Claude Code sessions at once, it's easy to miss the one waiti
 - **Click** to open the most urgent session. Desktop sessions open directly; terminal sessions bring your terminal forward.
 - **Calm by design.** Your companion only reacts when something actually happens. If a permission request goes unanswered for 5 minutes it reminds you once, then waits again.
 - **Choose which projects count** under *Watched projects* in the menu.
+- **Codex** has no question or crash events, so with Codex you get the permission and finished reactions.
 
 <p align="center"><img src="docs/images/finished-error-sparks.png" width="560" alt="Finished move, error move and shoulder sparks"></p>
 
 ### How it works
 
-Glitch adds a tiny hook script to Claude Code's global settings (`~/.claude/settings.json`). Claude Code calls it on events such as `PermissionRequest`, `Stop` and `StopFailure`. The script drops each event as a file into `~/Library/Application Support/Glitch/events/` and exits right away. Glitch reads those files and reacts.
+Glitch adds a tiny hook script to Claude Code's global settings (`~/.claude/settings.json`). Claude Code calls it on events such as `PermissionRequest`, `Stop` and `StopFailure`. For Codex the same script goes into `~/.codex/hooks.json`; Codex asks you to trust it once under `/hooks`. The script drops each event as a file into `~/Library/Application Support/Glitch/events/` and exits right away. Glitch reads those files and reacts.
 
 - **Nothing leaves your Mac.** No network, no account.
 - **Your settings are safe.** Installing shows exactly what will be added and asks first. Your existing hooks are kept, a backup is written, and *Remove* takes out only Glitch's entries.
-- **Claude Code is never slowed down.** The hook always exits immediately, even when Glitch isn't running.
+- **Claude Code and Codex are never slowed down.** The hook always exits immediately, even when Glitch isn't running.
 
 ## Also
 
@@ -75,7 +76,7 @@ Or build it yourself (below).
 ## Requirements
 
 - macOS 15 or later
-- [Claude Code](https://code.claude.com) for the sentinel. The rest of Glitch works without it.
+- [Claude Code](https://code.claude.com) or [Codex](https://developers.openai.com/codex) for the sentinel. The rest of Glitch works without it.
 
 ## Build
 
@@ -96,7 +97,7 @@ xcodebuild -scheme Glitch -destination 'platform=macOS' test
 ## First run
 
 1. Open Glitch and pick a companion on the welcome screen.
-2. Menu bar icon → **Claude Code sentinel: Install…** to install the sentinel hook.
+2. Menu bar icon → **Claude Code sentinel: Install…** and/or **Codex sentinel: Install…** to install the sentinel hook. For Codex, then run `/hooks` in Codex and trust Glitch's hook.
 3. Optional: grant **Accessibility** (System Settings → Privacy & Security) so it can step out of the way of text boxes.
 
 ## License

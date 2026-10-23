@@ -1,17 +1,19 @@
 import AppKit
 import SwiftUI
 
-/// Menu bar entries for the Claude Code sentinel: install/remove the hook (with consent) and the project filter.
+/// Menu bar entries for the Claude Code and Codex sentinel: install/remove the hook (with consent) and the project filter.
 struct SentinelMenu: View {
     /// The menu bar menu is only rebuilt when its state changes, so every action bumps this.
     @State private var revision = 0
 
     var body: some View {
         let _ = revision
-        if HookSetup.isInstalled {
-            Button("Claude Code sentinel: Remove") { HookSetup.uninstall(); revision += 1 }
-        } else {
-            Button("Claude Code sentinel: Install…") { HookSetup.askAndInstall(); revision += 1 }
+        ForEach(HookSetup.Tool.allCases, id: \.self) { tool in
+            if HookSetup.isInstalled(tool) {
+                Button("\(tool.name) sentinel: Remove") { HookSetup.uninstall(tool); revision += 1 }
+            } else {
+                Button("\(tool.name) sentinel: Install…") { HookSetup.askAndInstall(tool); revision += 1 }
+            }
         }
         let projects = SentinelHub.shared.projects
         if !projects.known.isEmpty {
@@ -28,48 +30,61 @@ struct SentinelMenu: View {
     }
 }
 
-/// Reads and writes ~/.claude/settings.json for the hook; only ever after the user confirms.
+/// Reads and writes ~/.claude/settings.json or ~/.codex/hooks.json for the hook; only ever after the user confirms.
 @MainActor
 enum HookSetup {
-    static let settingsURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
-    static var backupURL: URL { settingsURL.appendingPathExtension("glitch-backup") }
+    enum Tool: CaseIterable {
+        case claudeCode, codex
 
-    static var isInstalled: Bool {
-        HookInstaller.isInstalled(settings: try? Data(contentsOf: settingsURL), scriptPath: HookInstaller.scriptPath)
+        var name: String { self == .claudeCode ? "Claude Code" : "Codex" }
+        var file: String { self == .claudeCode ? "~/.claude/settings.json" : "~/.codex/hooks.json" }
+        var settingsURL: URL {
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(String(file.dropFirst(2)))
+        }
+        var events: [HookInstaller.Event] { self == .claudeCode ? HookInstaller.events : HookInstaller.codexEvents }
+        /// Codex skips a new or changed hook until the user trusts it.
+        var note: String { self == .claudeCode ? "" : "\n\nAfterwards, run /hooks in Codex once and trust Glitch's hook." }
     }
 
-    static func askAndInstall() {
+    static func isInstalled(_ tool: Tool = .claudeCode) -> Bool {
+        HookInstaller.isInstalled(settings: try? Data(contentsOf: tool.settingsURL), scriptPath: HookInstaller.scriptPath,
+                                  events: tool.events)
+    }
+
+    static func askAndInstall(_ tool: Tool = .claudeCode) {
         let alert = NSAlert()
-        alert.messageText = "Install the Claude Code sentinel?"
-        alert.informativeText = HookInstaller.preview(scriptPath: HookInstaller.scriptPath)
+        alert.messageText = "Install the \(tool.name) sentinel?"
+        alert.informativeText = HookInstaller.preview(scriptPath: HookInstaller.scriptPath, file: tool.file,
+                                                      events: tool.events, note: tool.note)
         alert.addButton(withTitle: "Install")
         alert.addButton(withTitle: "Cancel")
         NSApp.activate()
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         do {
             try copyScript()
-            let current = try? Data(contentsOf: settingsURL)
-            let updated = try HookInstaller.merged(settings: current, scriptPath: HookInstaller.scriptPath)
-            try write(updated, backingUp: current)
+            let current = try? Data(contentsOf: tool.settingsURL)
+            let updated = try HookInstaller.merged(settings: current, scriptPath: HookInstaller.scriptPath, events: tool.events)
+            try write(updated, backingUp: current, to: tool.settingsURL)
         } catch HookInstaller.Failure.invalidJSON {
-            show("Couldn't read settings.json. Nothing was changed.")
+            show("Couldn't read \(tool.file). Nothing was changed.")
         } catch {
             show("Couldn't install: \(error.localizedDescription)")
         }
     }
 
-    static func uninstall() {
-        guard let current = try? Data(contentsOf: settingsURL) else { return }
+    static func uninstall(_ tool: Tool = .claudeCode) {
+        guard let current = try? Data(contentsOf: tool.settingsURL) else { return }
         do {
-            try write(try HookInstaller.removed(settings: current, scriptPath: HookInstaller.scriptPath), backingUp: current)
+            try write(try HookInstaller.removed(settings: current, scriptPath: HookInstaller.scriptPath), backingUp: current,
+                      to: tool.settingsURL)
         } catch HookInstaller.Failure.invalidJSON {
-            show("Couldn't read settings.json. Nothing was changed.")
+            show("Couldn't read \(tool.file). Nothing was changed.")
         } catch {
             show("Couldn't remove: \(error.localizedDescription)")
         }
     }
 
-    /// The hook script ships inside the app; Claude Code runs a stable copy in Application Support.
+    /// The hook script ships inside the app; Claude Code and Codex run a stable copy in Application Support.
     private static func copyScript() throws {
         guard let bundled = Bundle.main.url(forResource: "glitch-hook", withExtension: "sh") else {
             throw CocoaError(.fileNoSuchFile)
@@ -82,10 +97,10 @@ enum HookSetup {
         try files.setAttributes([.posixPermissions: 0o755], ofItemAtPath: target.path)
     }
 
-    private static func write(_ data: Data, backingUp old: Data?) throws {
-        try FileManager.default.createDirectory(at: settingsURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if let old { try old.write(to: backupURL, options: .atomic) }
-        try data.write(to: settingsURL, options: .atomic)
+    private static func write(_ data: Data, backingUp old: Data?, to url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let old { try old.write(to: url.appendingPathExtension("glitch-backup"), options: .atomic) }
+        try data.write(to: url, options: .atomic)
     }
 
     private static func show(_ text: String) {
